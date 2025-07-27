@@ -431,13 +431,50 @@ jobs:
     steps:
       - name: Generate comprehensive test report
         id: report
+        env:
+          UNIT_STATUS: ${{ needs.unit-tests.outputs.status }}
+          UNIT_PASSED: ${{ needs.unit-tests.outputs.passed_tests }}
+          UNIT_FAILED: ${{ needs.unit-tests.outputs.failed_tests }}
+          UNIT_TOTAL: ${{ needs.unit-tests.outputs.total_tests }}
+          UNIT_FAILURE_DETAILS: ${{ needs.unit-tests.outputs.failure_details }}
+          
+          WIDGET_STATUS: ${{ needs.widget-tests.outputs.status }}
+          WIDGET_PASSED: ${{ needs.widget-tests.outputs.passed_tests }}
+          WIDGET_FAILED: ${{ needs.widget-tests.outputs.failed_tests }}
+          WIDGET_TOTAL: ${{ needs.widget-tests.outputs.total_tests }}
+          WIDGET_FAILURE_DETAILS: ${{ needs.widget-tests.outputs.failure_details }}
+          
+          ACCESSIBILITY_STATUS: ${{ needs.accessibility-tests.outputs.status }}
+          ACCESSIBILITY_PASSED: ${{ needs.accessibility-tests.outputs.passed_tests }}
+          ACCESSIBILITY_FAILED: ${{ needs.accessibility-tests.outputs.failed_tests }}
+          ACCESSIBILITY_TOTAL: ${{ needs.accessibility-tests.outputs.total_tests }}
+          ACCESSIBILITY_FAILURE_DETAILS: ${{ needs.accessibility-tests.outputs.failure_details }}
+          
+          GOLDEN_STATUS: ${{ needs.golden-tests.outputs.status }}
+          GOLDEN_PASSED: ${{ needs.golden-tests.outputs.passed_tests }}
+          GOLDEN_FAILED: ${{ needs.golden-tests.outputs.failed_tests }}
+          GOLDEN_TOTAL: ${{ needs.golden-tests.outputs.total_tests }}
+          GOLDEN_FAILURE_DETAILS: ${{ needs.golden-tests.outputs.failure_details }}
         run: |
           echo "Generating comprehensive test report..."
           
-          # Calculate totals
-          TOTAL_PASSED=$(({{ needs.unit-tests.outputs.passed_tests }} + {{ needs.widget-tests.outputs.passed_tests }} + {{ needs.accessibility-tests.outputs.passed_tests }} + {{ needs.golden-tests.outputs.passed_tests }}))
-          TOTAL_FAILED=$(({{ needs.unit-tests.outputs.failed_tests }} + {{ needs.widget-tests.outputs.failed_tests }} + {{ needs.accessibility-tests.outputs.failed_tests }} + {{ needs.golden-tests.outputs.failed_tests }}))
+          # Calculate totals with proper error handling
+          UNIT_PASSED=${UNIT_PASSED:-0}
+          WIDGET_PASSED=${WIDGET_PASSED:-0}
+          ACCESSIBILITY_PASSED=${ACCESSIBILITY_PASSED:-0}
+          GOLDEN_PASSED=${GOLDEN_PASSED:-0}
+          
+          UNIT_FAILED=${UNIT_FAILED:-0}
+          WIDGET_FAILED=${WIDGET_FAILED:-0}
+          ACCESSIBILITY_FAILED=${ACCESSIBILITY_FAILED:-0}
+          GOLDEN_FAILED=${GOLDEN_FAILED:-0}
+          
+          TOTAL_PASSED=$((UNIT_PASSED + WIDGET_PASSED + ACCESSIBILITY_PASSED + GOLDEN_PASSED))
+          TOTAL_FAILED=$((UNIT_FAILED + WIDGET_FAILED + ACCESSIBILITY_FAILED + GOLDEN_FAILED))
           TOTAL_TESTS=$((TOTAL_PASSED + TOTAL_FAILED))
+          
+          echo "Debug: UNIT_PASSED=$UNIT_PASSED, WIDGET_PASSED=$WIDGET_PASSED, ACCESSIBILITY_PASSED=$ACCESSIBILITY_PASSED, GOLDEN_PASSED=$GOLDEN_PASSED"
+          echo "Debug: TOTAL_PASSED=$TOTAL_PASSED, TOTAL_FAILED=$TOTAL_FAILED, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Determine overall status
           if [ $TOTAL_FAILED -eq 0 ]; then
@@ -463,37 +500,37 @@ jobs:
           ## 📋 Detailed Results by Test Suite
           
           ### 🔧 Unit Tests
-          - **Status**: $([ "{{ needs.unit-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
-          - **Tests**: {{ needs.unit-tests.outputs.passed_tests }}/{{ needs.unit-tests.outputs.total_tests }} passed
-          - **Failed Tests**: {{ needs.unit-tests.outputs.failed_tests }}
-          $([ "{{ needs.unit-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.unit-tests.outputs.failure_details }}" || echo "")
+          - **Status**: $([ "$UNIT_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: $UNIT_PASSED/$UNIT_TOTAL passed
+          - **Failed Tests**: $UNIT_FAILED
+          $([ "$UNIT_STATUS" = "failed" ] && echo "- **Failure Details**: $UNIT_FAILURE_DETAILS" || echo "")
           
           ### 🎨 Widget Tests
-          - **Status**: $([ "{{ needs.widget-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
-          - **Tests**: {{ needs.widget-tests.outputs.passed_tests }}/{{ needs.widget-tests.outputs.total_tests }} passed
-          - **Failed Tests**: {{ needs.widget-tests.outputs.failed_tests }}
-          $([ "{{ needs.widget-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.widget-tests.outputs.failure_details }}" || echo "")
+          - **Status**: $([ "$WIDGET_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: $WIDGET_PASSED/$WIDGET_TOTAL passed
+          - **Failed Tests**: $WIDGET_FAILED
+          $([ "$WIDGET_STATUS" = "failed" ] && echo "- **Failure Details**: $WIDGET_FAILURE_DETAILS" || echo "")
           
           ### ♿ Accessibility Tests
-          - **Status**: $([ "{{ needs.accessibility-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
-          - **Tests**: {{ needs.accessibility-tests.outputs.passed_tests }}/{{ needs.accessibility-tests.outputs.total_tests }} passed
-          - **Failed Tests**: {{ needs.accessibility-tests.outputs.failed_tests }}
-          $([ "{{ needs.accessibility-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.accessibility-tests.outputs.failure_details }}" || echo "")
+          - **Status**: $([ "$ACCESSIBILITY_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: $ACCESSIBILITY_PASSED/$ACCESSIBILITY_TOTAL passed
+          - **Failed Tests**: $ACCESSIBILITY_FAILED
+          $([ "$ACCESSIBILITY_STATUS" = "failed" ] && echo "- **Failure Details**: $ACCESSIBILITY_FAILURE_DETAILS" || echo "")
           
           ### 📸 Golden Tests
-          - **Status**: $([ "{{ needs.golden-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
-          - **Tests**: {{ needs.golden-tests.outputs.passed_tests }}/{{ needs.golden-tests.outputs.total_tests }} passed
-          - **Failed Tests**: {{ needs.golden-tests.outputs.failed_tests }}
-          $([ "{{ needs.golden-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.golden-tests.outputs.failure_details }}" || echo "")
+          - **Status**: $([ "$GOLDEN_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: $GOLDEN_PASSED/$GOLDEN_TOTAL passed
+          - **Failed Tests**: $GOLDEN_FAILED
+          $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Failure Details**: $GOLDEN_FAILURE_DETAILS" || echo "")
           
           ## 🔍 Failure Analysis
           
           $([ $TOTAL_FAILED -gt 0 ] && echo "### ❌ Failed Test Suites:" || echo "### ✅ All Test Suites Passed!")
           
-          $([ "{{ needs.unit-tests.outputs.status }}" = "failed" ] && echo "- **Unit Tests**: {{ needs.unit-tests.outputs.failure_details }}" || echo "")
-          $([ "{{ needs.widget-tests.outputs.status }}" = "failed" ] && echo "- **Widget Tests**: {{ needs.widget-tests.outputs.failure_details }}" || echo "")
-          $([ "{{ needs.accessibility-tests.outputs.status }}" = "failed" ] && echo "- **Accessibility Tests**: {{ needs.accessibility-tests.outputs.failure_details }}" || echo "")
-          $([ "{{ needs.golden-tests.outputs.status }}" = "failed" ] && echo "- **Golden Tests**: {{ needs.golden-tests.outputs.failure_details }}" || echo "")
+          $([ "$UNIT_STATUS" = "failed" ] && echo "- **Unit Tests**: $UNIT_FAILURE_DETAILS" || echo "")
+          $([ "$WIDGET_STATUS" = "failed" ] && echo "- **Widget Tests**: $WIDGET_FAILURE_DETAILS" || echo "")
+          $([ "$ACCESSIBILITY_STATUS" = "failed" ] && echo "- **Accessibility Tests**: $ACCESSIBILITY_FAILURE_DETAILS" || echo "")
+          $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Golden Tests**: $GOLDEN_FAILURE_DETAILS" || echo "")
           
           ## 📁 Test Artifacts
           
