@@ -1,0 +1,17 @@
+tags:
+  golden:
+    description: Golden tests for visual regression testing
+
+# Configure Google Fonts for testing
+# This allows Google Fonts to work in test environment
+test_on: vm
+
+# Configure golden tests
+golden:
+  # Set tolerance for pixel differences
+  tolerance: 0.0
+  
+# Configure test environment
+environment:
+  # Allow Google Fonts to fetch fonts during tests
+  GOOGLE_FONTS_ALLOW_RUNTIME_FETCHING: true 

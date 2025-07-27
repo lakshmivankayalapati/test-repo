@@ -1,0 +1,17 @@
+name: sliq_pay_appium_tests
+description: Appium UI tests for Sliq Pay app on Android 13 and Chrome PWA
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  webdriver: ^3.0.0
+
+dev_dependencies:
+  test: ^1.24.0
+
+# Add this section if you want to run tests with 'dart test'
+# test:
+#   platforms:
+#     vm:
+#       enabled: true 

@@ -1,0 +1,35 @@
+{
+  "@@locale": "en",
+  "welcomeScreenTitle1": "Pay Anywhere,\nInstantly & Easily",
+  "@welcomeScreenTitle1": {
+    "description": "Title for the first welcome screen"
+  },
+  "welcomeScreenDescription1": "From UPI to bank transfer to phone number pay how you want, globally.",
+  "@welcomeScreenDescription1": {
+    "description": "Description for the first welcome screen"
+  },
+  "welcomeScreenTitle2": "Your Money.\nOur Protection.",
+  "@welcomeScreenTitle2": {
+    "description": "Title for the second welcome screen"
+  },
+  "welcomeScreenDescription2": "Your data is encrypted and money is held at world-leading banks. Regulated and certified.",
+  "@welcomeScreenDescription2": {
+    "description": "Description for the second welcome screen"
+  },
+  "welcomeScreenTitle3": "What You See Is\nWhat You Pay",
+  "@welcomeScreenTitle3": {
+    "description": "Title for the third welcome screen"
+  },
+  "welcomeScreenDescription3": "No hidden fees. Mid-market (Google) exchange rates. Low cost, straight to you.",
+  "@welcomeScreenDescription3": {
+    "description": "Description for the third welcome screen"
+  },
+  "getStarted": "Get Started",
+  "@getStarted": {
+    "description": "Label for the Get Started button"
+  },
+  "login": "Log In",
+  "@login": {
+    "description": "Label for the Log In link"
+  }
+} 
