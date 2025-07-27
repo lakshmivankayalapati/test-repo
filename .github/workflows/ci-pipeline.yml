@@ -48,12 +48,47 @@ jobs:
           flutter test test/unit/ --reporter=expanded > test-results/unit_test_output.txt 2>&1
           UNIT_EXIT_CODE=$?
           
-          # Parse test results
+          # Parse test results using multiple methods
           echo "Parsing unit test results..."
           
-          # Count passed and failed tests with proper error handling and trim whitespace
-          PASSED_COUNT=$(grep -c "✓" test-results/unit_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
-          FAILED_COUNT=$(grep -c "✗" test-results/unit_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+          # Method 1: Look for Flutter test summary patterns
+          PASSED_COUNT=$(grep -o "✓ [0-9]* tests passed" test-results/unit_test_output.txt 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+          FAILED_COUNT=$(grep -o "✗ [0-9]* tests failed" test-results/unit_test_output.txt 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+          
+          # Method 2: Count individual test results if summary not found
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            PASSED_COUNT=$(grep -c "✓" test-results/unit_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+            FAILED_COUNT=$(grep -c "✗" test-results/unit_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+          fi
+          
+          # Method 3: Look for "All tests passed" or "Some tests failed"
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            if grep -q "All tests passed" test-results/unit_test_output.txt; then
+              # Count total test files and assume all passed
+              TOTAL_TEST_FILES=$(find test/unit/ -name "*.dart" | wc -l)
+              PASSED_COUNT=$TOTAL_TEST_FILES
+              FAILED_COUNT=0
+            elif grep -q "Some tests failed" test-results/unit_test_output.txt; then
+              # Count total test files and assume some failed
+              TOTAL_TEST_FILES=$(find test/unit/ -name "*.dart" | wc -l)
+              PASSED_COUNT=0
+              FAILED_COUNT=$TOTAL_TEST_FILES
+            fi
+          fi
+          
+          # Method 4: Manual count based on test file structure
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            echo "Using manual test count method..."
+            # Count test files and assume they all ran
+            TOTAL_TEST_FILES=$(find test/unit/ -name "*.dart" | wc -l)
+            if [ $UNIT_EXIT_CODE -eq 0 ]; then
+              PASSED_COUNT=$TOTAL_TEST_FILES
+              FAILED_COUNT=0
+            else
+              PASSED_COUNT=0
+              FAILED_COUNT=$TOTAL_TEST_FILES
+            fi
+          fi
           
           # Ensure we have valid numbers and handle empty results
           if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
@@ -72,6 +107,9 @@ jobs:
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
+          echo "Debug: UNIT_EXIT_CODE=$UNIT_EXIT_CODE"
+          echo "Debug: Test output preview:"
+          head -20 test-results/unit_test_output.txt
           
           # Extract failure details (first 1000 characters to avoid output size limits)
           FAILURE_DETAILS=""
@@ -145,12 +183,41 @@ jobs:
           flutter test test/widget_test.dart --reporter=expanded > test-results/widget_test_output.txt 2>&1
           WIDGET_EXIT_CODE=$?
           
-          # Parse test results
+          # Parse test results using multiple methods
           echo "Parsing widget test results..."
           
-          # Count passed and failed tests with proper error handling and trim whitespace
-          PASSED_COUNT=$(grep -c "✓" test-results/widget_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
-          FAILED_COUNT=$(grep -c "✗" test-results/widget_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+          # Method 1: Look for Flutter test summary patterns
+          PASSED_COUNT=$(grep -o "✓ [0-9]* tests passed" test-results/widget_test_output.txt 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+          FAILED_COUNT=$(grep -o "✗ [0-9]* tests failed" test-results/widget_test_output.txt 2>/dev/null | grep -o "[0-9]*" | head -1 || echo "0")
+          
+          # Method 2: Count individual test results if summary not found
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            PASSED_COUNT=$(grep -c "✓" test-results/widget_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+            FAILED_COUNT=$(grep -c "✗" test-results/widget_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
+          fi
+          
+          # Method 3: Look for "All tests passed" or "Some tests failed"
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            if grep -q "All tests passed" test-results/widget_test_output.txt; then
+              PASSED_COUNT=1
+              FAILED_COUNT=0
+            elif grep -q "Some tests failed" test-results/widget_test_output.txt; then
+              PASSED_COUNT=0
+              FAILED_COUNT=1
+            fi
+          fi
+          
+          # Method 4: Manual count based on test file structure
+          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
+            echo "Using manual test count method for widget tests..."
+            if [ $WIDGET_EXIT_CODE -eq 0 ]; then
+              PASSED_COUNT=1
+              FAILED_COUNT=0
+            else
+              PASSED_COUNT=0
+              FAILED_COUNT=1
+            fi
+          fi
           
           # Ensure we have valid numbers and handle empty results
           if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
@@ -169,6 +236,9 @@ jobs:
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
+          echo "Debug: WIDGET_EXIT_CODE=$WIDGET_EXIT_CODE"
+          echo "Debug: Test output preview:"
+          head -20 test-results/widget_test_output.txt
           
           # Extract failure details
           FAILURE_DETAILS=""
