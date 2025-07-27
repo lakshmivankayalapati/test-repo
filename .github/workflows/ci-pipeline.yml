@@ -1,4 +1,4 @@
-name: Simple CI Pipeline - Unit Tests
+name: Simple CI Pipeline - Unit & Widget Tests
 
 on:
   pull_request:
@@ -56,4 +56,39 @@ jobs:
           path: |
             test-results/
             coverage/
+          retention-days: 30
+
+  # Widget Tests
+  widget-tests:
+    name: Widget Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run widget tests
+        run: |
+          echo "Running widget tests..."
+          
+          # Run widget test
+          flutter test test/widget_test.dart --reporter=expanded
+          
+          echo "Widget tests completed successfully!"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: widget-test-results
+          path: |
+            test-results/
           retention-days: 30 
