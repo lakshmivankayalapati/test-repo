@@ -488,6 +488,12 @@ jobs:
   # Appium Android Tests
   appium-android-tests:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        api-level: [33]  # Android 13
+        target: [google_apis]
+        arch: [x86_64]
+        profile: [AVD]
     outputs:
       status: ${{ steps.test-results.outputs.status }}
       passed_tests: ${{ steps.test-results.outputs.passed_tests }}
@@ -514,14 +520,26 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
+      - name: Setup Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.api-level }}
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          profile: ${{ matrix.profile }}
+          avd-name: test-device
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -wipe-data
+          script: |
+            echo "Android emulator is running"
+            adb devices
+            adb shell getprop ro.build.version.release
+
       - name: Install Appium dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             nodejs \
             npm \
-            openjdk-11-jdk \
-            android-sdk \
             || echo "Some packages not found, continuing with available ones"
 
       - name: Install Appium
@@ -529,16 +547,13 @@ jobs:
           npm install -g appium
           appium driver install uiautomator2
 
-      - name: Setup Android SDK
-        run: |
-          export ANDROID_HOME=/usr/lib/android-sdk
-          export PATH=$PATH:$ANDROID_HOME/tools:$ANDROID_HOME/platform-tools
-          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          echo "PATH=$PATH" >> $GITHUB_ENV
-
       - name: Build APK
         run: |
           flutter build apk --release
+
+      - name: Install APK on emulator
+        run: |
+          adb install build/app/outputs/flutter-apk/app-release.apk
 
       - name: Start Appium server
         run: |
@@ -554,6 +569,7 @@ jobs:
           mkdir -p test-results
           
           # Run Appium Android tests and capture output
+          # Note: The test will run in the emulator environment
           dart run appium_tests/android13_test.dart > test-results/appium_android_test_output.txt 2>&1
           APPIUM_ANDROID_EXIT_CODE=$?
           
