@@ -1,4 +1,4 @@
-name: Simple CI Pipeline - Unit, Widget, Accessibility & Golden Tests
+name: Comprehensive CI Pipeline with Detailed Reporting
 
 on:
   pull_request:
@@ -15,8 +15,15 @@ env:
 jobs:
   # Unit Tests
   unit-tests:
-    name: Unit Tests
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.test-results.outputs.status }}
+      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
+      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
+      total_tests: ${{ steps.test-results.outputs.total_tests }}
+      failure_details: ${{ steps.test-results.outputs.failure_details }}
+      test_output: ${{ steps.test-results.outputs.test_output }}
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,38 +37,78 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run unit tests
+      - name: Run unit tests with detailed reporting
+        id: test-results
         run: |
-          echo "Running unit tests..."
+          echo "Running unit tests with comprehensive reporting..."
           
-          # Run carousel timer test
-          echo "Running carousel timer test..."
-          flutter test test/unit/carousel_timer_test.dart --reporter=expanded
+          # Create output directory
+          mkdir -p test-results
           
-          # Run hasSeenWelcome flag test
-          echo "Running hasSeenWelcome flag test..."
-          flutter test test/unit/hasSeenWelcome_flag_test.dart --reporter=expanded
+          # Run all unit tests and capture output
+          flutter test test/unit/ --reporter=expanded > test-results/unit_test_output.txt 2>&1
+          UNIT_EXIT_CODE=$?
           
-          # Run route handling test
-          echo "Running route handling test..."
-          flutter test test/unit/route_handling_test.dart --reporter=expanded
+          # Parse test results
+          echo "Parsing unit test results..."
           
-          echo "All unit tests completed successfully!"
+          # Count passed and failed tests
+          PASSED_TESTS=$(grep -c "✓" test-results/unit_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" test-results/unit_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          # Extract failure details (first 1000 characters to avoid output size limits)
+          FAILURE_DETAILS=""
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 5 -B 2 "✗" test-results/unit_test_output.txt 2>/dev/null | head -20 | tr '\n' ' ' | sed 's/ */ /g' | cut -c1-1000 || echo "No detailed failure info available")
+          fi
+          
+          # Get full test output (truncated to avoid GitHub output limits)
+          FULL_OUTPUT=$(cat test-results/unit_test_output.txt | head -1000)
+          
+          # Determine status
+          if [ $UNIT_EXIT_CODE -eq 0 ]; then
+            STATUS="passed"
+          else
+            STATUS="failed"
+          fi
+          
+          # Set outputs
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
+          echo "test_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$FULL_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Always exit successfully to continue pipeline
+          exit 0
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: unit-test-results
-          path: |
-            test-results/
-            coverage/
+          path: test-results/
           retention-days: 30
 
   # Widget Tests
   widget-tests:
-    name: Widget Tests
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.test-results.outputs.status }}
+      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
+      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
+      total_tests: ${{ steps.test-results.outputs.total_tests }}
+      failure_details: ${{ steps.test-results.outputs.failure_details }}
+      test_output: ${{ steps.test-results.outputs.test_output }}
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -75,28 +122,78 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run widget tests
+      - name: Run widget tests with detailed reporting
+        id: test-results
         run: |
-          echo "Running widget tests..."
+          echo "Running widget tests with comprehensive reporting..."
           
-          # Run widget test
-          flutter test test/widget_test.dart --reporter=expanded
+          # Create output directory
+          mkdir -p test-results
           
-          echo "Widget tests completed successfully!"
+          # Run widget tests and capture output
+          flutter test test/widget_test.dart --reporter=expanded > test-results/widget_test_output.txt 2>&1
+          WIDGET_EXIT_CODE=$?
+          
+          # Parse test results
+          echo "Parsing widget test results..."
+          
+          # Count passed and failed tests
+          PASSED_TESTS=$(grep -c "✓" test-results/widget_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" test-results/widget_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          # Extract failure details
+          FAILURE_DETAILS=""
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 5 -B 2 "✗" test-results/widget_test_output.txt 2>/dev/null | head -20 | tr '\n' ' ' | sed 's/ */ /g' | cut -c1-1000 || echo "No detailed failure info available")
+          fi
+          
+          # Get full test output
+          FULL_OUTPUT=$(cat test-results/widget_test_output.txt | head -1000)
+          
+          # Determine status
+          if [ $WIDGET_EXIT_CODE -eq 0 ]; then
+            STATUS="passed"
+          else
+            STATUS="failed"
+          fi
+          
+          # Set outputs
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
+          echo "test_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$FULL_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Always exit successfully to continue pipeline
+          exit 0
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: widget-test-results
-          path: |
-            test-results/
+          path: test-results/
           retention-days: 30
 
   # Accessibility Tests
   accessibility-tests:
-    name: Accessibility Tests
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.test-results.outputs.status }}
+      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
+      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
+      total_tests: ${{ steps.test-results.outputs.total_tests }}
+      failure_details: ${{ steps.test-results.outputs.failure_details }}
+      test_output: ${{ steps.test-results.outputs.test_output }}
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -110,28 +207,78 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run accessibility tests
+      - name: Run accessibility tests with detailed reporting
+        id: test-results
         run: |
-          echo "Running accessibility tests..."
+          echo "Running accessibility tests with comprehensive reporting..."
           
-          # Run accessibility test
-          flutter test test/accessibility_test.dart --reporter=expanded
+          # Create output directory
+          mkdir -p test-results
           
-          echo "Accessibility tests completed successfully!"
+          # Run accessibility tests and capture output
+          flutter test test/accessibility_test.dart --reporter=expanded > test-results/accessibility_test_output.txt 2>&1
+          ACCESSIBILITY_EXIT_CODE=$?
+          
+          # Parse test results
+          echo "Parsing accessibility test results..."
+          
+          # Count passed and failed tests
+          PASSED_TESTS=$(grep -c "✓" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          # Extract failure details
+          FAILURE_DETAILS=""
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 5 -B 2 "✗" test-results/accessibility_test_output.txt 2>/dev/null | head -20 | tr '\n' ' ' | sed 's/ */ /g' | cut -c1-1000 || echo "No detailed failure info available")
+          fi
+          
+          # Get full test output
+          FULL_OUTPUT=$(cat test-results/accessibility_test_output.txt | head -1000)
+          
+          # Determine status
+          if [ $ACCESSIBILITY_EXIT_CODE -eq 0 ]; then
+            STATUS="passed"
+          else
+            STATUS="failed"
+          fi
+          
+          # Set outputs
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
+          echo "test_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$FULL_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Always exit successfully to continue pipeline
+          exit 0
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: accessibility-test-results
-          path: |
-            test-results/
+          path: test-results/
           retention-days: 30
 
   # Golden Tests
   golden-tests:
-    name: Golden Tests
     runs-on: ubuntu-latest
+    outputs:
+      status: ${{ steps.test-results.outputs.status }}
+      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
+      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
+      total_tests: ${{ steps.test-results.outputs.total_tests }}
+      failure_details: ${{ steps.test-results.outputs.failure_details }}
+      test_output: ${{ steps.test-results.outputs.test_output }}
+    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -157,14 +304,58 @@ jobs:
             xvfb \
             || echo "Some packages not found, continuing with available ones"
 
-      - name: Run golden tests
+      - name: Run golden tests with detailed reporting
+        id: test-results
         run: |
-          echo "Running golden tests..."
+          echo "Running golden tests with comprehensive reporting..."
           
-          # Run golden test
-          flutter test goldens/golden_test.dart --reporter=expanded
+          # Create output directory
+          mkdir -p test-results
           
-          echo "Golden tests completed successfully!"
+          # Run golden tests and capture output
+          flutter test goldens/golden_test.dart --reporter=expanded > test-results/golden_test_output.txt 2>&1
+          GOLDEN_EXIT_CODE=$?
+          
+          # Parse test results
+          echo "Parsing golden test results..."
+          
+          # Count passed and failed tests
+          PASSED_TESTS=$(grep -c "✓" test-results/golden_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" test-results/golden_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          # Extract failure details
+          FAILURE_DETAILS=""
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 5 -B 2 "✗" test-results/golden_test_output.txt 2>/dev/null | head -20 | tr '\n' ' ' | sed 's/ */ /g' | cut -c1-1000 || echo "No detailed failure info available")
+          fi
+          
+          # Get full test output
+          FULL_OUTPUT=$(cat test-results/golden_test_output.txt | head -1000)
+          
+          # Determine status
+          if [ $GOLDEN_EXIT_CODE -eq 0 ]; then
+            STATUS="passed"
+          else
+            STATUS="failed"
+          fi
+          
+          # Set outputs
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
+          echo "test_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$FULL_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+          # Always exit successfully to continue pipeline
+          exit 0
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -174,4 +365,153 @@ jobs:
           path: |
             test-results/
             goldens/goldens/
-          retention-days: 30 
+          retention-days: 30
+
+  # Generate Comprehensive Test Report
+  test-summary:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests]
+    outputs:
+      overall_status: ${{ steps.report.outputs.overall_status }}
+      total_passed: ${{ steps.report.outputs.total_passed }}
+      total_failed: ${{ steps.report.outputs.total_failed }}
+      total_tests: ${{ steps.report.outputs.total_tests }}
+    steps:
+      - name: Generate comprehensive test report
+        id: report
+        run: |
+          echo "Generating comprehensive test report..."
+          
+          # Calculate totals
+          TOTAL_PASSED=$(({{ needs.unit-tests.outputs.passed_tests }} + {{ needs.widget-tests.outputs.passed_tests }} + {{ needs.accessibility-tests.outputs.passed_tests }} + {{ needs.golden-tests.outputs.passed_tests }}))
+          TOTAL_FAILED=$(({{ needs.unit-tests.outputs.failed_tests }} + {{ needs.widget-tests.outputs.failed_tests }} + {{ needs.accessibility-tests.outputs.failed_tests }} + {{ needs.golden-tests.outputs.failed_tests }}))
+          TOTAL_TESTS=$((TOTAL_PASSED + TOTAL_FAILED))
+          
+          # Determine overall status
+          if [ $TOTAL_FAILED -eq 0 ]; then
+            OVERALL_STATUS="success"
+          else
+            OVERALL_STATUS="failure"
+          fi
+          
+          # Create comprehensive report
+          cat << EOF > comprehensive_test_report.md
+          # 🧪 Comprehensive Test Report
+          
+          ## 📊 Executive Summary
+          
+          | Metric | Value |
+          |-------|-------|
+          | **Overall Status** | $([ "$OVERALL_STATUS" = "success" ] && echo "✅ PASSED" || echo "❌ FAILED") |
+          | **Total Tests** | $TOTAL_TESTS |
+          | **Passed Tests** | $TOTAL_PASSED |
+          | **Failed Tests** | $TOTAL_FAILED |
+          | **Success Rate** | $([ $TOTAL_TESTS -gt 0 ] && echo "$((TOTAL_PASSED * 100 / TOTAL_TESTS))%" || echo "0%") |
+          
+          ## 📋 Detailed Results by Test Suite
+          
+          ### 🔧 Unit Tests
+          - **Status**: $([ "{{ needs.unit-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: {{ needs.unit-tests.outputs.passed_tests }}/{{ needs.unit-tests.outputs.total_tests }} passed
+          - **Failed Tests**: {{ needs.unit-tests.outputs.failed_tests }}
+          $([ "{{ needs.unit-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.unit-tests.outputs.failure_details }}" || echo "")
+          
+          ### 🎨 Widget Tests
+          - **Status**: $([ "{{ needs.widget-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: {{ needs.widget-tests.outputs.passed_tests }}/{{ needs.widget-tests.outputs.total_tests }} passed
+          - **Failed Tests**: {{ needs.widget-tests.outputs.failed_tests }}
+          $([ "{{ needs.widget-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.widget-tests.outputs.failure_details }}" || echo "")
+          
+          ### ♿ Accessibility Tests
+          - **Status**: $([ "{{ needs.accessibility-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: {{ needs.accessibility-tests.outputs.passed_tests }}/{{ needs.accessibility-tests.outputs.total_tests }} passed
+          - **Failed Tests**: {{ needs.accessibility-tests.outputs.failed_tests }}
+          $([ "{{ needs.accessibility-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.accessibility-tests.outputs.failure_details }}" || echo "")
+          
+          ### 📸 Golden Tests
+          - **Status**: $([ "{{ needs.golden-tests.outputs.status }}" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: {{ needs.golden-tests.outputs.passed_tests }}/{{ needs.golden-tests.outputs.total_tests }} passed
+          - **Failed Tests**: {{ needs.golden-tests.outputs.failed_tests }}
+          $([ "{{ needs.golden-tests.outputs.status }}" = "failed" ] && echo "- **Failure Details**: {{ needs.golden-tests.outputs.failure_details }}" || echo "")
+          
+          ## 🔍 Failure Analysis
+          
+          $([ $TOTAL_FAILED -gt 0 ] && echo "### ❌ Failed Test Suites:" || echo "### ✅ All Test Suites Passed!")
+          
+          $([ "{{ needs.unit-tests.outputs.status }}" = "failed" ] && echo "- **Unit Tests**: {{ needs.unit-tests.outputs.failure_details }}" || echo "")
+          $([ "{{ needs.widget-tests.outputs.status }}" = "failed" ] && echo "- **Widget Tests**: {{ needs.widget-tests.outputs.failure_details }}" || echo "")
+          $([ "{{ needs.accessibility-tests.outputs.status }}" = "failed" ] && echo "- **Accessibility Tests**: {{ needs.accessibility-tests.outputs.failure_details }}" || echo "")
+          $([ "{{ needs.golden-tests.outputs.status }}" = "failed" ] && echo "- **Golden Tests**: {{ needs.golden-tests.outputs.failure_details }}" || echo "")
+          
+          ## 📁 Test Artifacts
+          
+          The following test artifacts are available for download:
+          - **Unit Test Results**: Available in the workflow artifacts
+          - **Widget Test Results**: Available in the workflow artifacts
+          - **Accessibility Test Results**: Available in the workflow artifacts
+          - **Golden Test Results**: Available in the workflow artifacts (includes golden images)
+          
+          ## 🚀 Next Steps
+          
+          $([ "$OVERALL_STATUS" = "success" ] && echo "✅ **All tests passed!** The code is ready for merge." || echo "❌ **Some tests failed.** Please review the failure details above and fix the issues before merging.")
+          
+          $([ $TOTAL_FAILED -gt 0 ] && echo "
+          ### 🔧 Recommended Actions:
+          1. Review the failure details for each failed test suite
+          2. Run the failing tests locally to reproduce the issues
+          3. Fix the identified problems
+          4. Re-run the CI pipeline to verify fixes
+          5. Only merge when all tests pass" || echo "")
+          
+          ---
+          *Report generated automatically by GitHub Actions CI Pipeline*
+          EOF
+          
+          # Set outputs
+          echo "overall_status=$OVERALL_STATUS" >> $GITHUB_OUTPUT
+          echo "total_passed=$TOTAL_PASSED" >> $GITHUB_OUTPUT
+          echo "total_failed=$TOTAL_FAILED" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          
+          # Display the report
+          cat comprehensive_test_report.md
+
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v4
+        with:
+          name: comprehensive-test-report
+          path: comprehensive_test_report.md
+          retention-days: 30
+
+      - name: Comment on PR with test results
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const report = fs.readFileSync('comprehensive_test_report.md', 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: report
+            });
+
+  # Final Status Check - Block PR if any tests fail
+  final-status:
+    runs-on: ubuntu-latest
+    needs: test-summary
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check overall test status
+        run: |
+          if [ "{{ needs.test-summary.outputs.overall_status }}" = "failure" ]; then
+            echo "❌ Some tests failed. Pull request cannot be merged."
+            echo "Total failed tests: {{ needs.test-summary.outputs.total_failed }}"
+            echo "Please review the comprehensive test report and fix all failing tests."
+            exit 1
+          else
+            echo "✅ All tests passed! Pull request is ready for merge."
+            echo "Total passed tests: {{ needs.test-summary.outputs.total_passed }}"
+          fi 
