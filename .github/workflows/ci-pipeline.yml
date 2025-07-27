@@ -148,7 +148,14 @@ jobs:
       - name: Install dependencies for golden tests
         run: |
           sudo apt-get update
-          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.0-dev
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libwebkit2gtk-4.0-dev \
+            libwebkit2gtk-4.0-37 \
+            libwebkit2gtk-4.1-0 \
+            xvfb \
+            || echo "Some packages not found, continuing with available ones"
 
       - name: Run golden tests
         run: |
