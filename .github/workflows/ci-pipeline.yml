@@ -48,18 +48,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing unit test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" unit_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "✗" unit_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "✓" unit_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" unit_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" unit_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" unit_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
@@ -114,18 +119,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing widget test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" widget_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "✗" widget_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "✓" widget_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" widget_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" widget_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" widget_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
@@ -184,18 +194,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing golden test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" golden_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "✗" golden_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "✓" golden_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" golden_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" golden_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" golden_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
@@ -250,18 +265,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing accessibility test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" accessibility_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "✗" accessibility_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "✓" accessibility_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "✗" accessibility_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" accessibility_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "✗" accessibility_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
@@ -360,18 +380,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing Appium test results..."
           
-          # Count passed and failed tests (basic counting)
-          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" appium_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" appium_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" appium_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" appium_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" appium_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" appium_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
@@ -455,18 +480,23 @@ jobs:
           # Extract test results with detailed analysis
           echo "Analyzing Web Appium test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" web_appium_test_output.txt || echo "0")
-          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" web_appium_test_output.txt || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" web_appium_test_output.txt 2>/dev/null || echo "0")
+          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" web_appium_test_output.txt 2>/dev/null || echo "0")
+          
+          # Ensure we have valid numbers
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
-          if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" web_appium_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+          if [ "$FAILED_TESTS" -gt 0 ]; then
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" web_appium_test_output.txt 2>/dev/null | head -50 | tr '\n' ' ' | sed 's/  */ /g' || echo "No detailed failure info available")
           fi
           
-          echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
+          # Set outputs with proper escaping
+          echo "status=$([ "$FAILED_TESTS" -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
           echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
           echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
           echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
