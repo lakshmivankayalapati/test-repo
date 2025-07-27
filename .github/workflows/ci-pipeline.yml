@@ -42,6 +42,10 @@ jobs:
           echo "Running hasSeenWelcome flag test..."
           flutter test test/unit/hasSeenWelcome_flag_test.dart --reporter=expanded
           
+          # Run route handling test
+          echo "Running route handling test..."
+          flutter test test/unit/route_handling_test.dart --reporter=expanded
+          
           echo "All unit tests completed successfully!"
 
       - name: Upload test results
