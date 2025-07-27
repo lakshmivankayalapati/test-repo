@@ -1,4 +1,4 @@
-name: Simple CI Pipeline - Unit & Widget Tests
+name: Simple CI Pipeline - Unit, Widget & Accessibility Tests
 
 on:
   pull_request:
@@ -89,6 +89,41 @@ jobs:
         if: always()
         with:
           name: widget-test-results
+          path: |
+            test-results/
+          retention-days: 30
+
+  # Accessibility Tests
+  accessibility-tests:
+    name: Accessibility Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Run accessibility tests
+        run: |
+          echo "Running accessibility tests..."
+          
+          # Run accessibility test
+          flutter test test/accessibility_test.dart --reporter=expanded
+          
+          echo "Accessibility tests completed successfully!"
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-test-results
           path: |
             test-results/
           retention-days: 30 
