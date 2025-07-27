@@ -52,14 +52,27 @@ jobs:
           # Parse test results
           echo "Parsing unit test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" test-results/unit_test_output.txt 2>/dev/null || echo "0")
-          FAILED_TESTS=$(grep -c "✗" test-results/unit_test_output.txt 2>/dev/null || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_COUNT=$(grep -c "✓" test-results/unit_test_output.txt 2>/dev/null || echo "0")
+          FAILED_COUNT=$(grep -c "✗" test-results/unit_test_output.txt 2>/dev/null || echo "0")
           
-          # Ensure we have valid numbers
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
+          # Ensure we have valid numbers and handle empty results
+          if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
+            PASSED_TESTS=0
+          else
+            PASSED_TESTS=$PASSED_COUNT
+          fi
+          
+          if [ -z "$FAILED_COUNT" ] || [ "$FAILED_COUNT" = "" ]; then
+            FAILED_TESTS=0
+          else
+            FAILED_TESTS=$FAILED_COUNT
+          fi
+          
+          # Calculate total with proper arithmetic
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Extract failure details (first 1000 characters to avoid output size limits)
           FAILURE_DETAILS=""
@@ -137,14 +150,27 @@ jobs:
           # Parse test results
           echo "Parsing widget test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" test-results/widget_test_output.txt 2>/dev/null || echo "0")
-          FAILED_TESTS=$(grep -c "✗" test-results/widget_test_output.txt 2>/dev/null || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_COUNT=$(grep -c "✓" test-results/widget_test_output.txt 2>/dev/null || echo "0")
+          FAILED_COUNT=$(grep -c "✗" test-results/widget_test_output.txt 2>/dev/null || echo "0")
           
-          # Ensure we have valid numbers
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
+          # Ensure we have valid numbers and handle empty results
+          if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
+            PASSED_TESTS=0
+          else
+            PASSED_TESTS=$PASSED_COUNT
+          fi
+          
+          if [ -z "$FAILED_COUNT" ] || [ "$FAILED_COUNT" = "" ]; then
+            FAILED_TESTS=0
+          else
+            FAILED_TESTS=$FAILED_COUNT
+          fi
+          
+          # Calculate total with proper arithmetic
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Extract failure details
           FAILURE_DETAILS=""
@@ -222,14 +248,27 @@ jobs:
           # Parse test results
           echo "Parsing accessibility test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
-          FAILED_TESTS=$(grep -c "✗" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_COUNT=$(grep -c "✓" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
+          FAILED_COUNT=$(grep -c "✗" test-results/accessibility_test_output.txt 2>/dev/null || echo "0")
           
-          # Ensure we have valid numbers
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
+          # Ensure we have valid numbers and handle empty results
+          if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
+            PASSED_TESTS=0
+          else
+            PASSED_TESTS=$PASSED_COUNT
+          fi
+          
+          if [ -z "$FAILED_COUNT" ] || [ "$FAILED_COUNT" = "" ]; then
+            FAILED_TESTS=0
+          else
+            FAILED_TESTS=$FAILED_COUNT
+          fi
+          
+          # Calculate total with proper arithmetic
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Extract failure details
           FAILURE_DETAILS=""
@@ -319,14 +358,27 @@ jobs:
           # Parse test results
           echo "Parsing golden test results..."
           
-          # Count passed and failed tests
-          PASSED_TESTS=$(grep -c "✓" test-results/golden_test_output.txt 2>/dev/null || echo "0")
-          FAILED_TESTS=$(grep -c "✗" test-results/golden_test_output.txt 2>/dev/null || echo "0")
+          # Count passed and failed tests with proper error handling
+          PASSED_COUNT=$(grep -c "✓" test-results/golden_test_output.txt 2>/dev/null || echo "0")
+          FAILED_COUNT=$(grep -c "✗" test-results/golden_test_output.txt 2>/dev/null || echo "0")
           
-          # Ensure we have valid numbers
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
+          # Ensure we have valid numbers and handle empty results
+          if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
+            PASSED_TESTS=0
+          else
+            PASSED_TESTS=$PASSED_COUNT
+          fi
+          
+          if [ -z "$FAILED_COUNT" ] || [ "$FAILED_COUNT" = "" ]; then
+            FAILED_TESTS=0
+          else
+            FAILED_TESTS=$FAILED_COUNT
+          fi
+          
+          # Calculate total with proper arithmetic
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
+          
+          echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Extract failure details
           FAILURE_DETAILS=""
