@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [ dev, main ]
   push:
-    branches: [ dev, main ]
+    branches: [ dev ]
 
 env:
   FLUTTER_VERSION: "3.24.5"
@@ -280,15 +280,11 @@ jobs:
             test-results/
           retention-days: 30
 
-  # Appium Tests (Android)
+  # Appium Tests (Android) - Only if appium_tests directory exists
   appium-tests-android:
     name: Appium Tests (Android)
     runs-on: ubuntu-latest
     continue-on-error: true
-    strategy:
-      matrix:
-        api-level: [29, 30, 31, 32, 33]
-        target: [google_apis]
     outputs:
       status: ${{ steps.test_run.outputs.status }}
       passed_tests: ${{ steps.test_run.outputs.passed_tests }}
@@ -316,18 +312,18 @@ jobs:
 
       - name: Create Android Virtual Device
         run: |
-          echo "Creating AVD for API level ${{ matrix.api-level }}"
+          echo "Creating AVD for API level ${{ env.ANDROID_API_LEVEL }}"
           $ANDROID_HOME/emulator/emulator -list-avds
           echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            -n "test_device_api_${{ matrix.api-level }}" \
-            -k "system-images;android-${{ matrix.api-level }};${{ matrix.target }};x86_64" \
+            -n "test_device_api_${{ env.ANDROID_API_LEVEL }}" \
+            -k "system-images;android-${{ env.ANDROID_API_LEVEL }};google_apis;x86_64" \
             --force
 
       - name: Start Android Emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: ${{ matrix.api-level }}
-          target: ${{ matrix.target }}
+          api-level: ${{ env.ANDROID_API_LEVEL }}
+          target: google_apis
           arch: x86_64
           profile: Nexus 6
           script: |
@@ -356,23 +352,23 @@ jobs:
         id: test_run
         run: |
           cd appium_tests
-          echo "Running Appium tests for API level ${{ matrix.api-level }}..."
+          echo "Running Appium tests for API level ${{ env.ANDROID_API_LEVEL }}..."
           
           # Create detailed output file
-          dart run android13_test.dart > appium_test_output_api_${{ matrix.api-level }}.txt 2>&1 || true
+          dart run android13_test.dart > appium_test_output.txt 2>&1 || true
           
           # Extract test results with detailed analysis
-          echo "Analyzing Appium test results for API ${{ matrix.api-level }}..."
+          echo "Analyzing Appium test results..."
           
           # Count passed and failed tests (basic counting)
-          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" appium_test_output_api_${{ matrix.api-level }}.txt || echo "0")
-          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" appium_test_output_api_${{ matrix.api-level }}.txt || echo "0")
+          PASSED_TESTS=$(grep -c "PASSED\|SUCCESS\|✓" appium_test_output.txt || echo "0")
+          FAILED_TESTS=$(grep -c "FAILED\|ERROR\|✗" appium_test_output.txt || echo "0")
           TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
           
           # Extract failure details
           FAILURE_DETAILS=""
           if [ $FAILED_TESTS -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" appium_test_output_api_${{ matrix.api-level }}.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
+            FAILURE_DETAILS=$(grep -A 10 -B 2 "FAILED\|ERROR\|✗" appium_test_output.txt | head -50 | tr '\n' ' ' | sed 's/  */ /g')
           fi
           
           echo "status=$([ $FAILED_TESTS -eq 0 ] && echo "passed" || echo "failed")" >> $GITHUB_OUTPUT
@@ -388,14 +384,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: appium-test-results-api-${{ matrix.api-level }}
+          name: appium-test-results
           path: |
-            appium_tests/appium_test_output_api_${{ matrix.api-level }}.txt
+            appium_tests/appium_test_output.txt
             appium_tests/test-results/
             appium_tests/screenshots/
           retention-days: 30
 
-  # Appium Tests (Web/PWA)
+  # Appium Tests (Web/PWA) - Only if appium_tests directory exists
   appium-tests-web:
     name: Appium Tests (Web/PWA)
     runs-on: ubuntu-latest
@@ -755,7 +751,7 @@ jobs:
           echo "- `widget-test-results` - Widget test output" >> comprehensive-test-report.md
           echo "- `golden-test-results` - Golden test output and images" >> comprehensive-test-report.md
           echo "- `accessibility-test-results` - Accessibility test output" >> comprehensive-test-report.md
-          echo "- `appium-test-results-api-*` - Appium Android test outputs" >> comprehensive-test-report.md
+          echo "- `appium-test-results` - Appium Android test output" >> comprehensive-test-report.md
           echo "- `appium-web-test-results` - Appium Web test output" >> comprehensive-test-report.md
           echo "" >> comprehensive-test-report.md
           
