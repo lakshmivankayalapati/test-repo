@@ -1,4 +1,4 @@
-name: Simple CI Pipeline - Carousel Timer Test Only
+name: Simple CI Pipeline - Unit Tests
 
 on:
   pull_request:
@@ -13,9 +13,9 @@ env:
   ANDROID_BUILD_TOOLS: "33.0.0"
 
 jobs:
-  # Carousel Timer Test Only
-  carousel-timer-test:
-    name: Carousel Timer Test
+  # Unit Tests
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -30,20 +30,25 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run carousel timer test
+      - name: Run unit tests
         run: |
-          echo "Running carousel timer test..."
+          echo "Running unit tests..."
           
-          # Run the specific test file
+          # Run carousel timer test
+          echo "Running carousel timer test..."
           flutter test test/unit/carousel_timer_test.dart --reporter=expanded
           
-          echo "Carousel timer test completed successfully!"
+          # Run hasSeenWelcome flag test
+          echo "Running hasSeenWelcome flag test..."
+          flutter test test/unit/hasSeenWelcome_flag_test.dart --reporter=expanded
+          
+          echo "All unit tests completed successfully!"
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: carousel-timer-test-results
+          name: unit-test-results
           path: |
             test-results/
             coverage/
