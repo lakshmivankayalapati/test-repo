@@ -23,7 +23,6 @@ jobs:
       total_tests: ${{ steps.test-results.outputs.total_tests }}
       failure_details: ${{ steps.test-results.outputs.failure_details }}
       test_output: ${{ steps.test-results.outputs.test_output }}
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -121,7 +120,6 @@ jobs:
       total_tests: ${{ steps.test-results.outputs.total_tests }}
       failure_details: ${{ steps.test-results.outputs.failure_details }}
       test_output: ${{ steps.test-results.outputs.test_output }}
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -219,7 +217,6 @@ jobs:
       total_tests: ${{ steps.test-results.outputs.total_tests }}
       failure_details: ${{ steps.test-results.outputs.failure_details }}
       test_output: ${{ steps.test-results.outputs.test_output }}
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -317,7 +314,6 @@ jobs:
       total_tests: ${{ steps.test-results.outputs.total_tests }}
       failure_details: ${{ steps.test-results.outputs.failure_details }}
       test_output: ${{ steps.test-results.outputs.test_output }}
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -457,6 +453,26 @@ jobs:
           GOLDEN_FAILURE_DETAILS: ${{ needs.golden-tests.outputs.failure_details }}
         run: |
           echo "Generating comprehensive test report..."
+          
+          # Debug: Print all environment variables
+          echo "=== Environment Variables Debug ==="
+          echo "UNIT_STATUS: '$UNIT_STATUS'"
+          echo "UNIT_PASSED: '$UNIT_PASSED'"
+          echo "UNIT_FAILED: '$UNIT_FAILED'"
+          echo "UNIT_TOTAL: '$UNIT_TOTAL'"
+          echo "WIDGET_STATUS: '$WIDGET_STATUS'"
+          echo "WIDGET_PASSED: '$WIDGET_PASSED'"
+          echo "WIDGET_FAILED: '$WIDGET_FAILED'"
+          echo "WIDGET_TOTAL: '$WIDGET_TOTAL'"
+          echo "ACCESSIBILITY_STATUS: '$ACCESSIBILITY_STATUS'"
+          echo "ACCESSIBILITY_PASSED: '$ACCESSIBILITY_PASSED'"
+          echo "ACCESSIBILITY_FAILED: '$ACCESSIBILITY_FAILED'"
+          echo "ACCESSIBILITY_TOTAL: '$ACCESSIBILITY_TOTAL'"
+          echo "GOLDEN_STATUS: '$GOLDEN_STATUS'"
+          echo "GOLDEN_PASSED: '$GOLDEN_PASSED'"
+          echo "GOLDEN_FAILED: '$GOLDEN_FAILED'"
+          echo "GOLDEN_TOTAL: '$GOLDEN_TOTAL'"
+          echo "=================================="
           
           # Calculate totals with proper error handling
           UNIT_PASSED=${UNIT_PASSED:-0}
