@@ -8,7 +8,7 @@ on:
 
 env:
   FLUTTER_VERSION: "3.32.5"
-  JAVA_VERSION: "11"
+  JAVA_VERSION: "17"
   ANDROID_API_LEVEL: "33"
   ANDROID_BUILD_TOOLS: "33.0.0"
 
@@ -509,7 +509,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '11'
+          java-version: '17'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -528,11 +528,18 @@ jobs:
           arch: ${{ matrix.arch }}
           profile: ${{ matrix.profile }}
           avd-name: test-device
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -wipe-data
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -wipe-data -memory 2048 -cores 2
           script: |
             echo "Android emulator is running"
+            echo "Checking Java version:"
+            java -version
+            echo "Checking Android SDK tools:"
+            sdkmanager --version || echo "sdkmanager not available"
+            echo "Checking ADB devices:"
             adb devices
+            echo "Checking Android version:"
             adb shell getprop ro.build.version.release
+            echo "Emulator setup completed successfully"
 
       - name: Install Appium dependencies
         run: |
@@ -553,7 +560,18 @@ jobs:
 
       - name: Install APK on emulator
         run: |
+          echo "Waiting for emulator to be ready..."
+          adb wait-for-device
+          echo "Installing APK on emulator..."
           adb install build/app/outputs/flutter-apk/app-release.apk
+          echo "APK installed successfully"
+
+      - name: Verify emulator setup
+        run: |
+          echo "Verifying emulator setup..."
+          adb devices
+          adb shell pm list packages | grep sliq_pay || echo "App not found in package list"
+          echo "Emulator verification completed"
 
       - name: Start Appium server
         run: |
