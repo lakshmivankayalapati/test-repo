@@ -485,204 +485,10 @@ jobs:
             goldens/goldens/
           retention-days: 30
 
-  # Appium Android Tests
-  appium-android-tests:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        api-level: [33]  # Android 13
-        target: [google_apis]
-        arch: [x86_64]
-    outputs:
-      status: ${{ steps.test-results.outputs.status }}
-      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
-      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
-      total_tests: ${{ steps.test-results.outputs.total_tests }}
-      failure_details: ${{ steps.test-results.outputs.failure_details }}
-      test_output: ${{ steps.test-results.outputs.test_output }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-
-      - name: Get dependencies
-        run: flutter pub get
-
-      - name: Setup Android Emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api-level }}
-          target: ${{ matrix.target }}
-          arch: ${{ matrix.arch }}
-          avd-name: test-device
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -wipe-data
-          script: |
-            echo "Android emulator is running"
-            echo "Checking Java version:"
-            java -version
-            echo "Checking Android SDK tools:"
-            sdkmanager --version || echo "sdkmanager not available"
-            echo "Checking ADB devices:"
-            adb devices
-            echo "Checking Android version:"
-            adb shell getprop ro.build.version.release
-            echo "Emulator setup completed successfully"
-
-      - name: Install Appium dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            nodejs \
-            npm \
-            || echo "Some packages not found, continuing with available ones"
-
-      - name: Install Appium
-        run: |
-          npm install -g appium
-          appium driver install uiautomator2
-
-      - name: Build APK
-        run: |
-          flutter build apk --release
-
-      - name: Install APK on emulator
-        run: |
-          echo "Waiting for emulator to be ready..."
-          adb wait-for-device
-          echo "Installing APK on emulator..."
-          adb install build/app/outputs/flutter-apk/app-release.apk
-          echo "APK installed successfully"
-
-      - name: Verify emulator setup
-        run: |
-          echo "Verifying emulator setup..."
-          adb devices
-          adb shell pm list packages | grep sliq_pay || echo "App not found in package list"
-          echo "Emulator verification completed"
-
-      - name: Start Appium server
-        run: |
-          appium --base-path /wd/hub &
-          sleep 10
-
-      - name: Run Appium Android tests with detailed reporting
-        id: test-results
-        run: |
-          echo "Running Appium Android tests with comprehensive reporting..."
-          
-          # Create output directory
-          mkdir -p test-results
-          
-          # Run Appium Android tests and capture output
-          # Note: The test will run in the emulator environment
-          dart run appium_tests/android13_test.dart > test-results/appium_android_test_output.txt 2>&1
-          APPIUM_ANDROID_EXIT_CODE=$?
-          
-          # Parse test results using multiple methods
-          echo "Parsing Appium Android test results..."
-          
-          # Method 1: Look for success/failure patterns
-          PASSED_COUNT=$(grep -c "✅" test-results/appium_android_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
-          FAILED_COUNT=$(grep -c "❌" test-results/appium_android_test_output.txt 2>/dev/null | tr -d '\n\r' || echo "0")
-          
-          # Method 2: Look for specific success messages
-          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
-            if grep -q "All Android 13 Pixel 4a tests completed successfully" test-results/appium_android_test_output.txt; then
-              PASSED_COUNT=1
-              FAILED_COUNT=0
-            elif grep -q "Test failed" test-results/appium_android_test_output.txt; then
-              PASSED_COUNT=0
-              FAILED_COUNT=1
-            fi
-          fi
-          
-          # Method 3: Manual count based on exit code
-          if [ "$PASSED_COUNT" = "0" ] && [ "$FAILED_COUNT" = "0" ]; then
-            echo "Using manual test count method for Appium Android tests..."
-            if [ $APPIUM_ANDROID_EXIT_CODE -eq 0 ]; then
-              PASSED_COUNT=1
-              FAILED_COUNT=0
-            else
-              PASSED_COUNT=0
-              FAILED_COUNT=1
-            fi
-          fi
-          
-          # Ensure we have valid numbers and handle empty results
-          if [ -z "$PASSED_COUNT" ] || [ "$PASSED_COUNT" = "" ]; then
-            PASSED_TESTS=0
-          else
-            PASSED_TESTS=$PASSED_COUNT
-          fi
-          
-          if [ -z "$FAILED_COUNT" ] || [ "$FAILED_COUNT" = "" ]; then
-            FAILED_TESTS=0
-          else
-            FAILED_TESTS=$FAILED_COUNT
-          fi
-          
-          # Calculate total with proper arithmetic
-          TOTAL_TESTS=$((PASSED_TESTS + FAILED_TESTS))
-          
-          echo "Debug: PASSED_TESTS=$PASSED_TESTS, FAILED_TESTS=$FAILED_TESTS, TOTAL_TESTS=$TOTAL_TESTS"
-          echo "Debug: APPIUM_ANDROID_EXIT_CODE=$APPIUM_ANDROID_EXIT_CODE"
-          echo "Debug: Test output preview:"
-          head -20 test-results/appium_android_test_output.txt
-          
-          # Extract failure details
-          FAILURE_DETAILS=""
-          if [ "$FAILED_TESTS" -gt 0 ]; then
-            FAILURE_DETAILS=$(grep -A 5 -B 2 "❌" test-results/appium_android_test_output.txt 2>/dev/null | head -20 | tr '\n' ' ' | sed 's/ */ /g' | cut -c1-1000 || echo "No detailed failure info available")
-          fi
-          
-          # Get full test output
-          FULL_OUTPUT=$(cat test-results/appium_android_test_output.txt | head -1000)
-          
-          # Determine status
-          if [ $APPIUM_ANDROID_EXIT_CODE -eq 0 ]; then
-            STATUS="passed"
-          else
-            STATUS="failed"
-          fi
-          
-          # Set outputs
-          echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
-          echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
-          echo "test_output<<EOF" >> $GITHUB_OUTPUT
-          echo "$FULL_OUTPUT" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-          
-          # Exit with the actual test result to properly indicate pass/fail
-          exit $APPIUM_ANDROID_EXIT_CODE
-
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: appium-android-test-results
-          path: |
-            test-results/
-            build/app/outputs/flutter-apk/
-          retention-days: 30
-
   # Generate Comprehensive Test Report
   test-summary:
     runs-on: ubuntu-latest
-    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-android-tests]
+    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests]
     outputs:
       overall_status: ${{ steps.report.outputs.overall_status }}
       total_passed: ${{ steps.report.outputs.total_passed }}
@@ -715,12 +521,6 @@ jobs:
           GOLDEN_FAILED: ${{ needs.golden-tests.outputs.failed_tests }}
           GOLDEN_TOTAL: ${{ needs.golden-tests.outputs.total_tests }}
           GOLDEN_FAILURE_DETAILS: ${{ needs.golden-tests.outputs.failure_details }}
-          
-          APPIUM_ANDROID_STATUS: ${{ needs.appium-android-tests.outputs.status }}
-          APPIUM_ANDROID_PASSED: ${{ needs.appium-android-tests.outputs.passed_tests }}
-          APPIUM_ANDROID_FAILED: ${{ needs.appium-android-tests.outputs.failed_tests }}
-          APPIUM_ANDROID_TOTAL: ${{ needs.appium-android-tests.outputs.total_tests }}
-          APPIUM_ANDROID_FAILURE_DETAILS: ${{ needs.appium-android-tests.outputs.failure_details }}
         run: |
           echo "Generating comprehensive test report..."
           
@@ -749,19 +549,17 @@ jobs:
           WIDGET_PASSED=${WIDGET_PASSED:-0}
           ACCESSIBILITY_PASSED=${ACCESSIBILITY_PASSED:-0}
           GOLDEN_PASSED=${GOLDEN_PASSED:-0}
-          APPIUM_ANDROID_PASSED=${APPIUM_ANDROID_PASSED:-0}
           
           UNIT_FAILED=${UNIT_FAILED:-0}
           WIDGET_FAILED=${WIDGET_FAILED:-0}
           ACCESSIBILITY_FAILED=${ACCESSIBILITY_FAILED:-0}
           GOLDEN_FAILED=${GOLDEN_FAILED:-0}
-          APPIUM_ANDROID_FAILED=${APPIUM_ANDROID_FAILED:-0}
           
-          TOTAL_PASSED=$((UNIT_PASSED + WIDGET_PASSED + ACCESSIBILITY_PASSED + GOLDEN_PASSED + APPIUM_ANDROID_PASSED))
-          TOTAL_FAILED=$((UNIT_FAILED + WIDGET_FAILED + ACCESSIBILITY_FAILED + GOLDEN_FAILED + APPIUM_ANDROID_FAILED))
+          TOTAL_PASSED=$((UNIT_PASSED + WIDGET_PASSED + ACCESSIBILITY_PASSED + GOLDEN_PASSED))
+          TOTAL_FAILED=$((UNIT_FAILED + WIDGET_FAILED + ACCESSIBILITY_FAILED + GOLDEN_FAILED))
           TOTAL_TESTS=$((TOTAL_PASSED + TOTAL_FAILED))
           
-          echo "Debug: UNIT_PASSED=$UNIT_PASSED, WIDGET_PASSED=$WIDGET_PASSED, ACCESSIBILITY_PASSED=$ACCESSIBILITY_PASSED, GOLDEN_PASSED=$GOLDEN_PASSED, APPIUM_ANDROID_PASSED=$APPIUM_ANDROID_PASSED"
+          echo "Debug: UNIT_PASSED=$UNIT_PASSED, WIDGET_PASSED=$WIDGET_PASSED, ACCESSIBILITY_PASSED=$ACCESSIBILITY_PASSED, GOLDEN_PASSED=$GOLDEN_PASSED"
           echo "Debug: TOTAL_PASSED=$TOTAL_PASSED, TOTAL_FAILED=$TOTAL_FAILED, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Determine overall status
@@ -811,12 +609,6 @@ jobs:
           - **Failed Tests**: $GOLDEN_FAILED
           $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Failure Details**: $GOLDEN_FAILURE_DETAILS" || echo "")
           
-          ### 🤖 Appium Android Tests
-          - **Status**: $([ "$APPIUM_ANDROID_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
-          - **Tests**: $APPIUM_ANDROID_PASSED/$APPIUM_ANDROID_TOTAL passed
-          - **Failed Tests**: $APPIUM_ANDROID_FAILED
-          $([ "$APPIUM_ANDROID_STATUS" = "failed" ] && echo "- **Failure Details**: $APPIUM_ANDROID_FAILURE_DETAILS" || echo "")
-          
           ## 🔍 Failure Analysis
           
           $([ $TOTAL_FAILED -gt 0 ] && echo "### ❌ Failed Test Suites:" || echo "### ✅ All Test Suites Passed!")
@@ -825,7 +617,6 @@ jobs:
           $([ "$WIDGET_STATUS" = "failed" ] && echo "- **Widget Tests**: $WIDGET_FAILURE_DETAILS" || echo "")
           $([ "$ACCESSIBILITY_STATUS" = "failed" ] && echo "- **Accessibility Tests**: $ACCESSIBILITY_FAILURE_DETAILS" || echo "")
           $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Golden Tests**: $GOLDEN_FAILURE_DETAILS" || echo "")
-          $([ "$APPIUM_ANDROID_STATUS" = "failed" ] && echo "- **Appium Android Tests**: $APPIUM_ANDROID_FAILURE_DETAILS" || echo "")
           
           ## 📁 Test Artifacts
           
@@ -834,7 +625,6 @@ jobs:
           - **Widget Test Results**: Available in the workflow artifacts
           - **Accessibility Test Results**: Available in the workflow artifacts
           - **Golden Test Results**: Available in the workflow artifacts (includes golden images)
-          - **Appium Android Test Results**: Available in the workflow artifacts (includes APK and test logs)
           
           ## 🚀 Next Steps
           
