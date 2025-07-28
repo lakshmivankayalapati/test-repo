@@ -55,9 +55,12 @@ jobs:
           import sys
 
           try:
+              print("Debug: Starting to process test output...")
               with open("test_output.json") as f:
                   lines = [json.loads(l) for l in f if l.strip().startswith("{")]
 
+              print(f"Debug: Found {len(lines)} JSON lines in test output")
+              
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
@@ -67,12 +70,14 @@ jobs:
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
+                      print(f"Debug: Found suite: {current_suite}")
                   elif entry['type'] == 'testStart':
                       test_name = entry['test']['name']
                       test_results[test_name] = {
                           'suite': current_suite,
                           'status': 'unknown'
                       }
+                      print(f"Debug: Found test start: {test_name}")
                   elif entry['type'] == 'testDone':
                       test_name = entry['test']['name']
                       if test_name in test_results:
@@ -82,6 +87,9 @@ jobs:
                           else:
                               failed += 1
                           total += 1
+                          print(f"Debug: Test completed: {test_name} -> {entry['result']}")
+
+              print(f"Debug: Total tests found: {total}, Passed: {passed}, Failed: {failed}")
 
               # Second pass: group by suite
               for test_name, test_info in test_results.items():
@@ -96,6 +104,8 @@ jobs:
                           suite_data[suite_name]["passed"] += 1
                       else:
                           suite_data[suite_name]["failed"] += 1
+
+              print(f"Debug: Suite data: {suite_data}")
 
               with open("unit_test_report.md", "w") as f:
                   f.write("# 🔧 Unit Tests Report\\n\\n")
@@ -131,11 +141,25 @@ jobs:
                   f.write("# 🔧 Unit Tests Report\\n\\n")
                   f.write("## ❌ Error Processing Test Results\\n\\n")
                   f.write("Unable to parse test output. Check the CI logs for details.\\n")
+              
+              # Set default values for outputs
+              print("Debug: Setting default values due to parsing error")
+              print("::set-output name=total_tests::0")
+              print("::set-output name=passed_tests::0")
+              print("::set-output name=failed_tests::0")
+              print("::set-output name=status::failed")
           EOF
 
       - name: Set test results outputs
         id: test-results
         run: |
+          # Debug: Check if the markdown file exists and show its content
+          echo "Debug: Checking if unit_test_report.md exists..."
+          ls -la unit_test_report.md || echo "unit_test_report.md not found!"
+          
+          echo "Debug: Content of unit_test_report.md:"
+          cat unit_test_report.md || echo "Could not read unit_test_report.md"
+          
           # Read the report to extract values with better parsing
           TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
           PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
@@ -143,9 +167,9 @@ jobs:
           
           # Debug output
           echo "Debug: Raw grep results:"
-          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' unit_test_report.md)"
-          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' unit_test_report.md)"
-          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' unit_test_report.md)"
+          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' unit_test_report.md || echo 'NOT FOUND')"
+          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' unit_test_report.md || echo 'NOT FOUND')"
+          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' unit_test_report.md || echo 'NOT FOUND')"
           
           # Fallback parsing if the above doesn't work
           if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
@@ -167,6 +191,15 @@ jobs:
           echo "TOTAL_TESTS: $TOTAL_TESTS"
           echo "PASSED_TESTS: $PASSED_TESTS"
           echo "FAILED_TESTS: $FAILED_TESTS"
+          
+          # If we couldn't parse any tests, try to count from the JSON directly
+          if [ "$TOTAL_TESTS" = "0" ]; then
+            echo "Debug: No tests parsed from markdown, trying to count from JSON..."
+            TOTAL_TESTS=$(grep -c '"type": "testDone"' test_output.json || echo "0")
+            PASSED_TESTS=$(grep -c '"result": "success"' test_output.json || echo "0")
+            FAILED_TESTS=$(grep -c '"result": "error"' test_output.json || echo "0")
+            echo "Debug: JSON-based counts - TOTAL: $TOTAL_TESTS, PASSED: $PASSED_TESTS, FAILED: $FAILED_TESTS"
+          fi
           
           # Determine status
           if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
