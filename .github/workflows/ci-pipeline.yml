@@ -688,13 +688,40 @@ jobs:
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values
-          TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
-          PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
-          FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          # Read the report to extract values with better parsing
+          TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          
+          # Debug output
+          echo "Debug: Raw grep results:"
+          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' golden_test_report.md)"
+          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' golden_test_report.md)"
+          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' golden_test_report.md)"
+          
+          # Fallback parsing if the above doesn't work
+          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
+            TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
+            PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
+            FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          
+          # Ensure we have valid numbers
+          TOTAL_TESTS=${TOTAL_TESTS:-0}
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          
+          echo "Debug: Parsed values:"
+          echo "TOTAL_TESTS: $TOTAL_TESTS"
+          echo "PASSED_TESTS: $PASSED_TESTS"
+          echo "FAILED_TESTS: $FAILED_TESTS"
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ]; then
+          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -705,9 +732,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
           echo "failure_details=Check golden_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -763,6 +790,26 @@ jobs:
           GOLDEN_TOTAL: ${{ needs.golden-tests.outputs.total_tests }}
         run: |
           echo "Generating comprehensive test report..."
+          
+          # Debug: Print all environment variables
+          echo "=== Environment Variables Debug ==="
+          echo "UNIT_STATUS: '$UNIT_STATUS'"
+          echo "UNIT_PASSED: '$UNIT_PASSED'"
+          echo "UNIT_FAILED: '$UNIT_FAILED'"
+          echo "UNIT_TOTAL: '$UNIT_TOTAL'"
+          echo "WIDGET_STATUS: '$WIDGET_STATUS'"
+          echo "WIDGET_PASSED: '$WIDGET_PASSED'"
+          echo "WIDGET_FAILED: '$WIDGET_FAILED'"
+          echo "WIDGET_TOTAL: '$WIDGET_TOTAL'"
+          echo "ACCESSIBILITY_STATUS: '$ACCESSIBILITY_STATUS'"
+          echo "ACCESSIBILITY_PASSED: '$ACCESSIBILITY_PASSED'"
+          echo "ACCESSIBILITY_FAILED: '$ACCESSIBILITY_FAILED'"
+          echo "ACCESSIBILITY_TOTAL: '$ACCESSIBILITY_TOTAL'"
+          echo "GOLDEN_STATUS: '$GOLDEN_STATUS'"
+          echo "GOLDEN_PASSED: '$GOLDEN_PASSED'"
+          echo "GOLDEN_FAILED: '$GOLDEN_FAILED'"
+          echo "GOLDEN_TOTAL: '$GOLDEN_TOTAL'"
+          echo "=================================="
           
           # Calculate totals with proper error handling
           UNIT_PASSED=${UNIT_PASSED:-0}
