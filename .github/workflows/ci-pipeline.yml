@@ -136,13 +136,40 @@ jobs:
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values
-          TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
-          PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
-          FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          # Read the report to extract values with better parsing
+          TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          
+          # Debug output
+          echo "Debug: Raw grep results:"
+          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' unit_test_report.md)"
+          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' unit_test_report.md)"
+          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' unit_test_report.md)"
+          
+          # Fallback parsing if the above doesn't work
+          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
+            TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
+            PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
+            FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          
+          # Ensure we have valid numbers
+          TOTAL_TESTS=${TOTAL_TESTS:-0}
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          
+          echo "Debug: Parsed values:"
+          echo "TOTAL_TESTS: $TOTAL_TESTS"
+          echo "PASSED_TESTS: $PASSED_TESTS"
+          echo "FAILED_TESTS: $FAILED_TESTS"
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ]; then
+          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -153,9 +180,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
           echo "failure_details=Check unit_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -289,13 +316,40 @@ jobs:
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values
-          TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
-          PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
-          FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          # Read the report to extract values with better parsing
+          TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          
+          # Debug output
+          echo "Debug: Raw grep results:"
+          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' widget_test_report.md)"
+          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' widget_test_report.md)"
+          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' widget_test_report.md)"
+          
+          # Fallback parsing if the above doesn't work
+          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
+            TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
+            PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
+            FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          
+          # Ensure we have valid numbers
+          TOTAL_TESTS=${TOTAL_TESTS:-0}
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          
+          echo "Debug: Parsed values:"
+          echo "TOTAL_TESTS: $TOTAL_TESTS"
+          echo "PASSED_TESTS: $PASSED_TESTS"
+          echo "FAILED_TESTS: $FAILED_TESTS"
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ]; then
+          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -306,9 +360,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
           echo "failure_details=Check widget_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -442,13 +496,40 @@ jobs:
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values
-          TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
-          PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
-          FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          # Read the report to extract values with better parsing
+          TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
+          
+          # Debug output
+          echo "Debug: Raw grep results:"
+          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' accessibility_test_report.md)"
+          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' accessibility_test_report.md)"
+          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' accessibility_test_report.md)"
+          
+          # Fallback parsing if the above doesn't work
+          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
+            TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
+            PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
+            FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          fi
+          
+          # Ensure we have valid numbers
+          TOTAL_TESTS=${TOTAL_TESTS:-0}
+          PASSED_TESTS=${PASSED_TESTS:-0}
+          FAILED_TESTS=${FAILED_TESTS:-0}
+          
+          echo "Debug: Parsed values:"
+          echo "TOTAL_TESTS: $TOTAL_TESTS"
+          echo "PASSED_TESTS: $PASSED_TESTS"
+          echo "FAILED_TESTS: $FAILED_TESTS"
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ]; then
+          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -459,9 +540,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
-          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
           echo "failure_details=Check accessibility_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
