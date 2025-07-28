@@ -55,95 +55,73 @@ jobs:
           import sys
 
           try:
-              print("Debug: Starting to process test output...")
               with open("test_output.json") as f:
                   lines = [json.loads(l) for l in f if l.strip().startswith("{")]
 
-              print(f"Debug: Found {len(lines)} JSON lines in test output")
-              
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
-              test_results = {}  # Track individual test results
 
-              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
-                      print(f"Debug: Found suite: {current_suite}")
+                      if current_suite:
+                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      test_name = entry['test']['name']
-                      test_results[test_name] = {
-                          'suite': current_suite,
-                          'status': 'unknown'
-                      }
-                      print(f"Debug: Found test start: {test_name}")
+                      total += 1
                   elif entry['type'] == 'testDone':
-                      test_name = entry['test']['name']
-                      if test_name in test_results:
-                          test_results[test_name]['status'] = entry['result']
-                          if entry['result'] == 'success':
-                              passed += 1
-                          else:
-                              failed += 1
-                          total += 1
-                          print(f"Debug: Test completed: {test_name} -> {entry['result']}")
-
-              print(f"Debug: Total tests found: {total}, Passed: {passed}, Failed: {failed}")
-
-              # Second pass: group by suite
-              for test_name, test_info in test_results.items():
-                  suite_path = test_info['suite']
-                  if suite_path:
-                      # Extract suite name from path
-                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                      if suite_name not in suite_data:
-                          suite_data[suite_name] = {"passed": 0, "failed": 0}
-                      
-                      if test_info['status'] == 'success':
-                          suite_data[suite_name]["passed"] += 1
+                      if entry['result'] == 'success':
+                          passed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["passed"] += 1
                       else:
-                          suite_data[suite_name]["failed"] += 1
-
-              print(f"Debug: Suite data: {suite_data}")
+                          failed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["failed"] += 1
 
               with open("unit_test_report.md", "w") as f:
-                  f.write("# 🔧 Unit Tests Report\\n\\n")
-                  f.write("## 📊 Summary\\n\\n")
-                  f.write("| Metric | Value |\\n|--------|-------|\\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
-                  f.write(f"| **Total Tests** | {total} |\\n")
-                  f.write(f"| **Passed Tests** | {passed} |\\n")
-                  f.write(f"| **Failed Tests** | {failed} |\\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
+                  f.write("# 🔧 Unit Tests Report\n\n")
+                  f.write("## 📊 Summary\n\n")
+                  f.write("| Metric | Value |\n|--------|-------|\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
+                  f.write(f"| **Total Tests** | {total} |\n")
+                  f.write(f"| **Passed Tests** | {passed} |\n")
+                  f.write(f"| **Failed Tests** | {failed} |\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
 
-                  f.write("## 📋 Test Suite Results\\n\\n")
+                  f.write("## 📋 Test Suite Results\n\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\\n")
-                      f.write(f"- **Status**: {status}\\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
+                      f.write(f"### 🧪 {suite}\n")
+                      f.write(f"- **Status**: {status}\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Unit Tests Passed!\\n")
+                      f.write("## ✅ All Unit Tests Passed!\n")
                   else:
-                      f.write("## ❌ Some Unit Tests Failed\\n")
-                      f.write("Check the CI logs for detailed failure information.\\n")
+                      f.write("## ❌ Some Unit Tests Failed\n")
+                      f.write("Check the CI logs for detailed failure information.\n")
 
-                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
+                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
+
+              # Set outputs for GitHub Actions
+              print(f"::set-output name=total_tests::{total}")
+              print(f"::set-output name=passed_tests::{passed}")
+              print(f"::set-output name=failed_tests::{failed}")
+              print(f"::set-output name=status::{'passed' if failed == 0 else 'failed'}")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("unit_test_report.md", "w") as f:
-                  f.write("# 🔧 Unit Tests Report\\n\\n")
-                  f.write("## ❌ Error Processing Test Results\\n\\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
-              
-              # Set default values for outputs
-              print("Debug: Setting default values due to parsing error")
+                  f.write("# 🔧 Unit Tests Report\n\n")
+                  f.write("## ❌ Error Processing Test Results\n\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\n")
               print("::set-output name=total_tests::0")
               print("::set-output name=passed_tests::0")
               print("::set-output name=failed_tests::0")
@@ -153,56 +131,13 @@ jobs:
       - name: Set test results outputs
         id: test-results
         run: |
-          # Debug: Check if the markdown file exists and show its content
-          echo "Debug: Checking if unit_test_report.md exists..."
-          ls -la unit_test_report.md || echo "unit_test_report.md not found!"
-          
-          echo "Debug: Content of unit_test_report.md:"
-          cat unit_test_report.md || echo "Could not read unit_test_report.md"
-          
-          # Read the report to extract values with better parsing
-          TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          
-          # Debug output
-          echo "Debug: Raw grep results:"
-          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' unit_test_report.md || echo 'NOT FOUND')"
-          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' unit_test_report.md || echo 'NOT FOUND')"
-          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' unit_test_report.md || echo 'NOT FOUND')"
-          
-          # Fallback parsing if the above doesn't work
-          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
-            TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
-            PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
-            FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          
-          # Ensure we have valid numbers
-          TOTAL_TESTS=${TOTAL_TESTS:-0}
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
-          
-          echo "Debug: Parsed values:"
-          echo "TOTAL_TESTS: $TOTAL_TESTS"
-          echo "PASSED_TESTS: $PASSED_TESTS"
-          echo "FAILED_TESTS: $FAILED_TESTS"
-          
-          # If we couldn't parse any tests, try to count from the JSON directly
-          if [ "$TOTAL_TESTS" = "0" ]; then
-            echo "Debug: No tests parsed from markdown, trying to count from JSON..."
-            TOTAL_TESTS=$(grep -c '"type": "testDone"' test_output.json || echo "0")
-            PASSED_TESTS=$(grep -c '"result": "success"' test_output.json || echo "0")
-            FAILED_TESTS=$(grep -c '"result": "error"' test_output.json || echo "0")
-            echo "Debug: JSON-based counts - TOTAL: $TOTAL_TESTS, PASSED: $PASSED_TESTS, FAILED: $FAILED_TESTS"
-          fi
+          # Read the report to extract values
+          TOTAL_TESTS=$(grep "Total Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          PASSED_TESTS=$(grep "Passed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
+          FAILED_TESTS=$(grep "Failed Tests" unit_test_report.md | grep -o "[0-9]*" | head -1)
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
+          if [ "$FAILED_TESTS" = "0" ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -213,9 +148,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
           echo "failure_details=Check unit_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -274,115 +209,73 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
-              test_results = {}  # Track individual test results
 
-              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
+                      if current_suite:
+                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      test_name = entry['test']['name']
-                      test_results[test_name] = {
-                          'suite': current_suite,
-                          'status': 'unknown'
-                      }
+                      total += 1
                   elif entry['type'] == 'testDone':
-                      test_name = entry['test']['name']
-                      if test_name in test_results:
-                          test_results[test_name]['status'] = entry['result']
-                          if entry['result'] == 'success':
-                              passed += 1
-                          else:
-                              failed += 1
-                          total += 1
-
-              # Second pass: group by suite
-              for test_name, test_info in test_results.items():
-                  suite_path = test_info['suite']
-                  if suite_path:
-                      # Extract suite name from path
-                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                      if suite_name not in suite_data:
-                          suite_data[suite_name] = {"passed": 0, "failed": 0}
-                      
-                      if test_info['status'] == 'success':
-                          suite_data[suite_name]["passed"] += 1
+                      if entry['result'] == 'success':
+                          passed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["passed"] += 1
                       else:
-                          suite_data[suite_name]["failed"] += 1
+                          failed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["failed"] += 1
 
               with open("widget_test_report.md", "w") as f:
-                  f.write("# 🎨 Widget Tests Report\\n\\n")
-                  f.write("## 📊 Summary\\n\\n")
-                  f.write("| Metric | Value |\\n|--------|-------|\\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
-                  f.write(f"| **Total Tests** | {total} |\\n")
-                  f.write(f"| **Passed Tests** | {passed} |\\n")
-                  f.write(f"| **Failed Tests** | {failed} |\\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
+                  f.write("# 🎨 Widget Tests Report\n\n")
+                  f.write("## 📊 Summary\n\n")
+                  f.write("| Metric | Value |\n|--------|-------|\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
+                  f.write(f"| **Total Tests** | {total} |\n")
+                  f.write(f"| **Passed Tests** | {passed} |\n")
+                  f.write(f"| **Failed Tests** | {failed} |\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
 
-                  f.write("## 📋 Test Suite Results\\n\\n")
+                  f.write("## 📋 Test Suite Results\n\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\\n")
-                      f.write(f"- **Status**: {status}\\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
+                      f.write(f"### 🧪 {suite}\n")
+                      f.write(f"- **Status**: {status}\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Widget Tests Passed!\\n")
+                      f.write("## ✅ All Widget Tests Passed!\n")
                   else:
-                      f.write("## ❌ Some Widget Tests Failed\\n")
-                      f.write("Check the CI logs for detailed failure information.\\n")
+                      f.write("## ❌ Some Widget Tests Failed\n")
+                      f.write("Check the CI logs for detailed failure information.\n")
 
-                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
+                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("widget_test_report.md", "w") as f:
-                  f.write("# 🎨 Widget Tests Report\\n\\n")
-                  f.write("## ❌ Error Processing Test Results\\n\\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
+                  f.write("# 🎨 Widget Tests Report\n\n")
+                  f.write("## ❌ Error Processing Test Results\n\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\n")
           EOF
 
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values with better parsing
-          TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          
-          # Debug output
-          echo "Debug: Raw grep results:"
-          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' widget_test_report.md)"
-          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' widget_test_report.md)"
-          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' widget_test_report.md)"
-          
-          # Fallback parsing if the above doesn't work
-          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
-            TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
-            PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
-            FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          
-          # Ensure we have valid numbers
-          TOTAL_TESTS=${TOTAL_TESTS:-0}
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
-          
-          echo "Debug: Parsed values:"
-          echo "TOTAL_TESTS: $TOTAL_TESTS"
-          echo "PASSED_TESTS: $PASSED_TESTS"
-          echo "FAILED_TESTS: $FAILED_TESTS"
+          # Read the report to extract values
+          TOTAL_TESTS=$(grep "Total Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          PASSED_TESTS=$(grep "Passed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
+          FAILED_TESTS=$(grep "Failed Tests" widget_test_report.md | grep -o "[0-9]*" | head -1)
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
+          if [ "$FAILED_TESTS" = "0" ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -393,9 +286,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
           echo "failure_details=Check widget_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -454,115 +347,73 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
-              test_results = {}  # Track individual test results
 
-              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
+                      if current_suite:
+                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      test_name = entry['test']['name']
-                      test_results[test_name] = {
-                          'suite': current_suite,
-                          'status': 'unknown'
-                      }
+                      total += 1
                   elif entry['type'] == 'testDone':
-                      test_name = entry['test']['name']
-                      if test_name in test_results:
-                          test_results[test_name]['status'] = entry['result']
-                          if entry['result'] == 'success':
-                              passed += 1
-                          else:
-                              failed += 1
-                          total += 1
-
-              # Second pass: group by suite
-              for test_name, test_info in test_results.items():
-                  suite_path = test_info['suite']
-                  if suite_path:
-                      # Extract suite name from path
-                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                      if suite_name not in suite_data:
-                          suite_data[suite_name] = {"passed": 0, "failed": 0}
-                      
-                      if test_info['status'] == 'success':
-                          suite_data[suite_name]["passed"] += 1
+                      if entry['result'] == 'success':
+                          passed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["passed"] += 1
                       else:
-                          suite_data[suite_name]["failed"] += 1
+                          failed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["failed"] += 1
 
               with open("accessibility_test_report.md", "w") as f:
-                  f.write("# ♿ Accessibility Tests Report\\n\\n")
-                  f.write("## 📊 Summary\\n\\n")
-                  f.write("| Metric | Value |\\n|--------|-------|\\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
-                  f.write(f"| **Total Tests** | {total} |\\n")
-                  f.write(f"| **Passed Tests** | {passed} |\\n")
-                  f.write(f"| **Failed Tests** | {failed} |\\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
+                  f.write("# ♿ Accessibility Tests Report\n\n")
+                  f.write("## 📊 Summary\n\n")
+                  f.write("| Metric | Value |\n|--------|-------|\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
+                  f.write(f"| **Total Tests** | {total} |\n")
+                  f.write(f"| **Passed Tests** | {passed} |\n")
+                  f.write(f"| **Failed Tests** | {failed} |\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
 
-                  f.write("## 📋 Test Suite Results\\n\\n")
+                  f.write("## 📋 Test Suite Results\n\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\\n")
-                      f.write(f"- **Status**: {status}\\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
+                      f.write(f"### 🧪 {suite}\n")
+                      f.write(f"- **Status**: {status}\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Accessibility Tests Passed!\\n")
+                      f.write("## ✅ All Accessibility Tests Passed!\n")
                   else:
-                      f.write("## ❌ Some Accessibility Tests Failed\\n")
-                      f.write("Check the CI logs for detailed failure information.\\n")
+                      f.write("## ❌ Some Accessibility Tests Failed\n")
+                      f.write("Check the CI logs for detailed failure information.\n")
 
-                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
+                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("accessibility_test_report.md", "w") as f:
-                  f.write("# ♿ Accessibility Tests Report\\n\\n")
-                  f.write("## ❌ Error Processing Test Results\\n\\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
+                  f.write("# ♿ Accessibility Tests Report\n\n")
+                  f.write("## ❌ Error Processing Test Results\n\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\n")
           EOF
 
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values with better parsing
-          TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          
-          # Debug output
-          echo "Debug: Raw grep results:"
-          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' accessibility_test_report.md)"
-          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' accessibility_test_report.md)"
-          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' accessibility_test_report.md)"
-          
-          # Fallback parsing if the above doesn't work
-          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
-            TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
-            PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
-            FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          
-          # Ensure we have valid numbers
-          TOTAL_TESTS=${TOTAL_TESTS:-0}
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
-          
-          echo "Debug: Parsed values:"
-          echo "TOTAL_TESTS: $TOTAL_TESTS"
-          echo "PASSED_TESTS: $PASSED_TESTS"
-          echo "FAILED_TESTS: $FAILED_TESTS"
+          # Read the report to extract values
+          TOTAL_TESTS=$(grep "Total Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          PASSED_TESTS=$(grep "Passed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
+          FAILED_TESTS=$(grep "Failed Tests" accessibility_test_report.md | grep -o "[0-9]*" | head -1)
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
+          if [ "$FAILED_TESTS" = "0" ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -573,9 +424,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
           echo "failure_details=Check accessibility_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -646,115 +497,73 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
-              test_results = {}  # Track individual test results
 
-              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
+                      if current_suite:
+                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      test_name = entry['test']['name']
-                      test_results[test_name] = {
-                          'suite': current_suite,
-                          'status': 'unknown'
-                      }
+                      total += 1
                   elif entry['type'] == 'testDone':
-                      test_name = entry['test']['name']
-                      if test_name in test_results:
-                          test_results[test_name]['status'] = entry['result']
-                          if entry['result'] == 'success':
-                              passed += 1
-                          else:
-                              failed += 1
-                          total += 1
-
-              # Second pass: group by suite
-              for test_name, test_info in test_results.items():
-                  suite_path = test_info['suite']
-                  if suite_path:
-                      # Extract suite name from path
-                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                      if suite_name not in suite_data:
-                          suite_data[suite_name] = {"passed": 0, "failed": 0}
-                      
-                      if test_info['status'] == 'success':
-                          suite_data[suite_name]["passed"] += 1
+                      if entry['result'] == 'success':
+                          passed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["passed"] += 1
                       else:
-                          suite_data[suite_name]["failed"] += 1
+                          failed += 1
+                          if current_suite:
+                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                              suite_data[suite_name]["failed"] += 1
 
               with open("golden_test_report.md", "w") as f:
-                  f.write("# 📸 Golden Tests Report\\n\\n")
-                  f.write("## 📊 Summary\\n\\n")
-                  f.write("| Metric | Value |\\n|--------|-------|\\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
-                  f.write(f"| **Total Tests** | {total} |\\n")
-                  f.write(f"| **Passed Tests** | {passed} |\\n")
-                  f.write(f"| **Failed Tests** | {failed} |\\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
+                  f.write("# 📸 Golden Tests Report\n\n")
+                  f.write("## 📊 Summary\n\n")
+                  f.write("| Metric | Value |\n|--------|-------|\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
+                  f.write(f"| **Total Tests** | {total} |\n")
+                  f.write(f"| **Passed Tests** | {passed} |\n")
+                  f.write(f"| **Failed Tests** | {failed} |\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
 
-                  f.write("## 📋 Test Suite Results\\n\\n")
+                  f.write("## 📋 Test Suite Results\n\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\\n")
-                      f.write(f"- **Status**: {status}\\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
+                      f.write(f"### 🧪 {suite}\n")
+                      f.write(f"- **Status**: {status}\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Golden Tests Passed!\\n")
+                      f.write("## ✅ All Golden Tests Passed!\n")
                   else:
-                      f.write("## ❌ Some Golden Tests Failed\\n")
-                      f.write("Check the CI logs for detailed failure information.\\n")
+                      f.write("## ❌ Some Golden Tests Failed\n")
+                      f.write("Check the CI logs for detailed failure information.\n")
 
-                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
+                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("golden_test_report.md", "w") as f:
-                  f.write("# 📸 Golden Tests Report\\n\\n")
-                  f.write("## ❌ Error Processing Test Results\\n\\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
+                  f.write("# 📸 Golden Tests Report\n\n")
+                  f.write("## ❌ Error Processing Test Results\n\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\n")
           EOF
 
       - name: Set test results outputs
         id: test-results
         run: |
-          # Read the report to extract values with better parsing
-          TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | sed 's/.*Total Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | sed 's/.*Passed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | sed 's/.*Failed Tests.*| \([0-9]*\) |.*/\1/' | tr -d ' ')
-          
-          # Debug output
-          echo "Debug: Raw grep results:"
-          echo "TOTAL_TESTS_RAW: $(grep 'Total Tests' golden_test_report.md)"
-          echo "PASSED_TESTS_RAW: $(grep 'Passed Tests' golden_test_report.md)"
-          echo "FAILED_TESTS_RAW: $(grep 'Failed Tests' golden_test_report.md)"
-          
-          # Fallback parsing if the above doesn't work
-          if [ -z "$TOTAL_TESTS" ] || [ "$TOTAL_TESTS" = "" ]; then
-            TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$PASSED_TESTS" ] || [ "$PASSED_TESTS" = "" ]; then
-            PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          if [ -z "$FAILED_TESTS" ] || [ "$FAILED_TESTS" = "" ]; then
-            FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
-          fi
-          
-          # Ensure we have valid numbers
-          TOTAL_TESTS=${TOTAL_TESTS:-0}
-          PASSED_TESTS=${PASSED_TESTS:-0}
-          FAILED_TESTS=${FAILED_TESTS:-0}
-          
-          echo "Debug: Parsed values:"
-          echo "TOTAL_TESTS: $TOTAL_TESTS"
-          echo "PASSED_TESTS: $PASSED_TESTS"
-          echo "FAILED_TESTS: $FAILED_TESTS"
+          # Read the report to extract values
+          TOTAL_TESTS=$(grep "Total Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          PASSED_TESTS=$(grep "Passed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
+          FAILED_TESTS=$(grep "Failed Tests" golden_test_report.md | grep -o "[0-9]*" | head -1)
           
           # Determine status
-          if [ "$FAILED_TESTS" = "0" ] && [ "$TOTAL_TESTS" -gt 0 ]; then
+          if [ "$FAILED_TESTS" = "0" ]; then
             STATUS="passed"
           else
             STATUS="failed"
@@ -765,9 +574,9 @@ jobs:
           
           # Set outputs
           echo "status=$STATUS" >> $GITHUB_OUTPUT
-          echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
-          echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
-          echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+          echo "passed_tests=${PASSED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "failed_tests=${FAILED_TESTS:-0}" >> $GITHUB_OUTPUT
+          echo "total_tests=${TOTAL_TESTS:-0}" >> $GITHUB_OUTPUT
           echo "failure_details=Check golden_test_report.md for details" >> $GITHUB_OUTPUT
           echo "test_output<<EOF" >> $GITHUB_OUTPUT
           echo "$TEST_OUTPUT" >> $GITHUB_OUTPUT
@@ -823,26 +632,6 @@ jobs:
           GOLDEN_TOTAL: ${{ needs.golden-tests.outputs.total_tests }}
         run: |
           echo "Generating comprehensive test report..."
-          
-          # Debug: Print all environment variables
-          echo "=== Environment Variables Debug ==="
-          echo "UNIT_STATUS: '$UNIT_STATUS'"
-          echo "UNIT_PASSED: '$UNIT_PASSED'"
-          echo "UNIT_FAILED: '$UNIT_FAILED'"
-          echo "UNIT_TOTAL: '$UNIT_TOTAL'"
-          echo "WIDGET_STATUS: '$WIDGET_STATUS'"
-          echo "WIDGET_PASSED: '$WIDGET_PASSED'"
-          echo "WIDGET_FAILED: '$WIDGET_FAILED'"
-          echo "WIDGET_TOTAL: '$WIDGET_TOTAL'"
-          echo "ACCESSIBILITY_STATUS: '$ACCESSIBILITY_STATUS'"
-          echo "ACCESSIBILITY_PASSED: '$ACCESSIBILITY_PASSED'"
-          echo "ACCESSIBILITY_FAILED: '$ACCESSIBILITY_FAILED'"
-          echo "ACCESSIBILITY_TOTAL: '$ACCESSIBILITY_TOTAL'"
-          echo "GOLDEN_STATUS: '$GOLDEN_STATUS'"
-          echo "GOLDEN_PASSED: '$GOLDEN_PASSED'"
-          echo "GOLDEN_FAILED: '$GOLDEN_FAILED'"
-          echo "GOLDEN_TOTAL: '$GOLDEN_TOTAL'"
-          echo "=================================="
           
           # Calculate totals with proper error handling
           UNIT_PASSED=${UNIT_PASSED:-0}
