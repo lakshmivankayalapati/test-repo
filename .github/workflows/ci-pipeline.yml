@@ -12,6 +12,11 @@ env:
   ANDROID_API_LEVEL: "33"
   ANDROID_BUILD_TOOLS: "33.0.0"
 
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+
 jobs:
   # Unit Tests
   unit-tests:
@@ -36,8 +41,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Activate junitreport
-        run: dart pub global activate junitreport
+      - name: Install junitreport
+        run: |
+          # Install junitreport globally
+          dart pub global activate junitreport
+          # Add to PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Run unit tests with JUnit reporting
         id: test-results
@@ -51,8 +60,16 @@ jobs:
           flutter test test/unit/ --machine > test-results/unit_test_machine.json 2>&1
           UNIT_EXIT_CODE=$?
           
-          # Convert to JUnit XML
-          cat test-results/unit_test_machine.json | junitreport > test-results/unit_tests.xml
+          # Convert to JUnit XML only if junitreport is available
+          if command -v junitreport &> /dev/null; then
+            echo "Converting to JUnit XML..."
+            cat test-results/unit_test_machine.json | junitreport > test-results/unit_tests.xml
+            echo "JUnit XML generated successfully"
+          else
+            echo "junitreport not found, skipping JUnit conversion"
+            # Create empty XML file to avoid errors
+            echo '<?xml version="1.0" encoding="UTF-8"?><testsuites></testsuites>' > test-results/unit_tests.xml
+          fi
           
           # Also run with expanded reporter for detailed output
           flutter test test/unit/ --reporter=expanded > test-results/unit_test_output.txt 2>&1
@@ -186,8 +203,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Activate junitreport
-        run: dart pub global activate junitreport
+      - name: Install junitreport
+        run: |
+          # Install junitreport globally
+          dart pub global activate junitreport
+          # Add to PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Run widget tests with JUnit reporting
         id: test-results
@@ -201,8 +222,16 @@ jobs:
           flutter test test/widget_test.dart --machine > test-results/widget_test_machine.json 2>&1
           WIDGET_EXIT_CODE=$?
           
-          # Convert to JUnit XML
-          cat test-results/widget_test_machine.json | junitreport > test-results/widget_tests.xml
+          # Convert to JUnit XML only if junitreport is available
+          if command -v junitreport &> /dev/null; then
+            echo "Converting to JUnit XML..."
+            cat test-results/widget_test_machine.json | junitreport > test-results/widget_tests.xml
+            echo "JUnit XML generated successfully"
+          else
+            echo "junitreport not found, skipping JUnit conversion"
+            # Create empty XML file to avoid errors
+            echo '<?xml version="1.0" encoding="UTF-8"?><testsuites></testsuites>' > test-results/widget_tests.xml
+          fi
           
           # Also run with expanded reporter for detailed output
           flutter test test/widget_test.dart --reporter=expanded > test-results/widget_test_output.txt 2>&1
@@ -330,8 +359,12 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Activate junitreport
-        run: dart pub global activate junitreport
+      - name: Install junitreport
+        run: |
+          # Install junitreport globally
+          dart pub global activate junitreport
+          # Add to PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Run accessibility tests with JUnit reporting
         id: test-results
@@ -345,8 +378,16 @@ jobs:
           flutter test test/accessibility_test.dart --machine > test-results/accessibility_test_machine.json 2>&1
           ACCESSIBILITY_EXIT_CODE=$?
           
-          # Convert to JUnit XML
-          cat test-results/accessibility_test_machine.json | junitreport > test-results/accessibility_tests.xml
+          # Convert to JUnit XML only if junitreport is available
+          if command -v junitreport &> /dev/null; then
+            echo "Converting to JUnit XML..."
+            cat test-results/accessibility_test_machine.json | junitreport > test-results/accessibility_tests.xml
+            echo "JUnit XML generated successfully"
+          else
+            echo "junitreport not found, skipping JUnit conversion"
+            # Create empty XML file to avoid errors
+            echo '<?xml version="1.0" encoding="UTF-8"?><testsuites></testsuites>' > test-results/accessibility_tests.xml
+          fi
           
           # Also run with expanded reporter for detailed output
           flutter test test/accessibility_test.dart --reporter=expanded > test-results/accessibility_test_output.txt 2>&1
@@ -454,8 +495,12 @@ jobs:
             xvfb \
             || echo "Some packages not found, continuing with available ones"
 
-      - name: Activate junitreport
-        run: dart pub global activate junitreport
+      - name: Install junitreport
+        run: |
+          # Install junitreport globally
+          dart pub global activate junitreport
+          # Add to PATH
+          echo "$HOME/.pub-cache/bin" >> $GITHUB_PATH
 
       - name: Run golden tests with JUnit reporting
         id: test-results
@@ -469,8 +514,16 @@ jobs:
           flutter test goldens/golden_test.dart --machine > test-results/golden_test_machine.json 2>&1
           GOLDEN_EXIT_CODE=$?
           
-          # Convert to JUnit XML
-          cat test-results/golden_test_machine.json | junitreport > test-results/golden_tests.xml
+          # Convert to JUnit XML only if junitreport is available
+          if command -v junitreport &> /dev/null; then
+            echo "Converting to JUnit XML..."
+            cat test-results/golden_test_machine.json | junitreport > test-results/golden_tests.xml
+            echo "JUnit XML generated successfully"
+          else
+            echo "junitreport not found, skipping JUnit conversion"
+            # Create empty XML file to avoid errors
+            echo '<?xml version="1.0" encoding="UTF-8"?><testsuites></testsuites>' > test-results/golden_tests.xml
+          fi
           
           # Also run with expanded reporter for detailed output
           flutter test goldens/golden_test.dart --reporter=expanded > test-results/golden_test_output.txt 2>&1
