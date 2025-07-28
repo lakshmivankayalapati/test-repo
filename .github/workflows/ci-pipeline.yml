@@ -36,7 +36,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run unit tests with detailed reporting
+      - name: Activate junitreport
+        run: dart pub global activate junitreport
+
+      - name: Run unit tests with JUnit reporting
         id: test-results
         run: |
           echo "Running unit tests with comprehensive reporting..."
@@ -44,9 +47,15 @@ jobs:
           # Create output directory
           mkdir -p test-results
           
-          # Run all unit tests and capture output
-          flutter test test/unit/ --reporter=expanded > test-results/unit_test_output.txt 2>&1
+          # Run all unit tests with machine output for JUnit conversion
+          flutter test test/unit/ --machine > test-results/unit_test_machine.json 2>&1
           UNIT_EXIT_CODE=$?
+          
+          # Convert to JUnit XML
+          cat test-results/unit_test_machine.json | junitreport > test-results/unit_tests.xml
+          
+          # Also run with expanded reporter for detailed output
+          flutter test test/unit/ --reporter=expanded > test-results/unit_test_output.txt 2>&1
           
           # Parse test results using multiple methods
           echo "Parsing unit test results..."
@@ -140,6 +149,12 @@ jobs:
           # Exit with the actual test result to properly indicate pass/fail
           exit $UNIT_EXIT_CODE
 
+      - name: Publish JUnit test results to GitHub
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/unit_tests.xml
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -171,7 +186,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run widget tests with detailed reporting
+      - name: Activate junitreport
+        run: dart pub global activate junitreport
+
+      - name: Run widget tests with JUnit reporting
         id: test-results
         run: |
           echo "Running widget tests with comprehensive reporting..."
@@ -179,9 +197,15 @@ jobs:
           # Create output directory
           mkdir -p test-results
           
-          # Run widget tests and capture output
-          flutter test test/widget_test.dart --reporter=expanded > test-results/widget_test_output.txt 2>&1
+          # Run widget tests with machine output for JUnit conversion
+          flutter test test/widget_test.dart --machine > test-results/widget_test_machine.json 2>&1
           WIDGET_EXIT_CODE=$?
+          
+          # Convert to JUnit XML
+          cat test-results/widget_test_machine.json | junitreport > test-results/widget_tests.xml
+          
+          # Also run with expanded reporter for detailed output
+          flutter test test/widget_test.dart --reporter=expanded > test-results/widget_test_output.txt 2>&1
           
           # Parse test results using multiple methods
           echo "Parsing widget test results..."
@@ -269,6 +293,12 @@ jobs:
           # Exit with the actual test result to properly indicate pass/fail
           exit $WIDGET_EXIT_CODE
 
+      - name: Publish JUnit test results to GitHub
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/widget_tests.xml
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -300,7 +330,10 @@ jobs:
       - name: Get dependencies
         run: flutter pub get
 
-      - name: Run accessibility tests with detailed reporting
+      - name: Activate junitreport
+        run: dart pub global activate junitreport
+
+      - name: Run accessibility tests with JUnit reporting
         id: test-results
         run: |
           echo "Running accessibility tests with comprehensive reporting..."
@@ -308,9 +341,15 @@ jobs:
           # Create output directory
           mkdir -p test-results
           
-          # Run accessibility tests and capture output
-          flutter test test/accessibility_test.dart --reporter=expanded > test-results/accessibility_test_output.txt 2>&1
+          # Run accessibility tests with machine output for JUnit conversion
+          flutter test test/accessibility_test.dart --machine > test-results/accessibility_test_machine.json 2>&1
           ACCESSIBILITY_EXIT_CODE=$?
+          
+          # Convert to JUnit XML
+          cat test-results/accessibility_test_machine.json | junitreport > test-results/accessibility_tests.xml
+          
+          # Also run with expanded reporter for detailed output
+          flutter test test/accessibility_test.dart --reporter=expanded > test-results/accessibility_test_output.txt 2>&1
           
           # Parse test results
           echo "Parsing accessibility test results..."
@@ -366,6 +405,12 @@ jobs:
           # Exit with the actual test result to properly indicate pass/fail
           exit $ACCESSIBILITY_EXIT_CODE
 
+      - name: Publish JUnit test results to GitHub
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/accessibility_tests.xml
+
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -409,7 +454,10 @@ jobs:
             xvfb \
             || echo "Some packages not found, continuing with available ones"
 
-      - name: Run golden tests with detailed reporting
+      - name: Activate junitreport
+        run: dart pub global activate junitreport
+
+      - name: Run golden tests with JUnit reporting
         id: test-results
         run: |
           echo "Running golden tests with comprehensive reporting..."
@@ -417,9 +465,15 @@ jobs:
           # Create output directory
           mkdir -p test-results
           
-          # Run golden tests and capture output
-          flutter test goldens/golden_test.dart --reporter=expanded > test-results/golden_test_output.txt 2>&1
+          # Run golden tests with machine output for JUnit conversion
+          flutter test goldens/golden_test.dart --machine > test-results/golden_test_machine.json 2>&1
           GOLDEN_EXIT_CODE=$?
+          
+          # Convert to JUnit XML
+          cat test-results/golden_test_machine.json | junitreport > test-results/golden_tests.xml
+          
+          # Also run with expanded reporter for detailed output
+          flutter test goldens/golden_test.dart --reporter=expanded > test-results/golden_test_output.txt 2>&1
           
           # Parse test results
           echo "Parsing golden test results..."
@@ -474,6 +528,12 @@ jobs:
           
           # Exit with the actual test result to properly indicate pass/fail
           exit $GOLDEN_EXIT_CODE
+
+      - name: Publish JUnit test results to GitHub
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always()
+        with:
+          files: test-results/golden_tests.xml
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
@@ -658,20 +718,40 @@ jobs:
           path: comprehensive_test_report.md
           retention-days: 30
 
-      - name: Comment on PR with test results
+      - name: Add test results as sticky PR comment
         if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
+        uses: marocchino/sticky-pull-request-comment@v2
         with:
-          script: |
-            const fs = require('fs');
-            const report = fs.readFileSync('comprehensive_test_report.md', 'utf8');
+          header: test-results
+          message: |
+            # 🧪 Test Results Summary
             
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: report
-            });
+            ## 📊 Overall Status
+            **Status:** ${{ steps.report.outputs.overall_status == 'success' && '✅ PASSED' || '❌ FAILED' }}
+            **Total Tests:** ${{ steps.report.outputs.total_tests }}
+            **Passed:** ${{ steps.report.outputs.total_passed }}
+            **Failed:** ${{ steps.report.outputs.total_failed }}
+            
+            ## 📋 Test Suite Results
+            
+            ### 🔧 Unit Tests
+            - **Status:** ${{ needs.unit-tests.outputs.status == 'passed' && '✅ PASSED' || '❌ FAILED' }}
+            - **Tests:** ${{ needs.unit-tests.outputs.passed_tests }}/${{ needs.unit-tests.outputs.total_tests }} passed
+            
+            ### 🎨 Widget Tests
+            - **Status:** ${{ needs.widget-tests.outputs.status == 'passed' && '✅ PASSED' || '❌ FAILED' }}
+            - **Tests:** ${{ needs.widget-tests.outputs.passed_tests }}/${{ needs.widget-tests.outputs.total_tests }} passed
+            
+            ### ♿ Accessibility Tests
+            - **Status:** ${{ needs.accessibility-tests.outputs.status == 'passed' && '✅ PASSED' || '❌ FAILED' }}
+            - **Tests:** ${{ needs.accessibility-tests.outputs.passed_tests }}/${{ needs.accessibility-tests.outputs.total_tests }} passed
+            
+            ### 📸 Golden Tests
+            - **Status:** ${{ needs.golden-tests.outputs.status == 'passed' && '✅ PASSED' || '❌ FAILED' }}
+            - **Tests:** ${{ needs.golden-tests.outputs.passed_tests }}/${{ needs.golden-tests.outputs.total_tests }} passed
+            
+            ---
+            *Detailed test results and artifacts available in the workflow run*
 
   # Final Status Check - Block PR if any tests fail
   final-status:
