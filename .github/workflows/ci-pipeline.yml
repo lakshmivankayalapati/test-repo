@@ -1,4 +1,4 @@
-name: Comprehensive CI Pipeline with Detailed Reporting
+name: Comprehensive CI Testing Pipeline
 
 on:
   pull_request:
@@ -61,71 +61,76 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
+              test_results = {}  # Track individual test results
 
+              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
-                      if current_suite:
-                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      total += 1
+                      test_name = entry['test']['name']
+                      test_results[test_name] = {
+                          'suite': current_suite,
+                          'status': 'unknown'
+                      }
                   elif entry['type'] == 'testDone':
-                      if entry['result'] == 'success':
-                          passed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["passed"] += 1
+                      test_name = entry['test']['name']
+                      if test_name in test_results:
+                          test_results[test_name]['status'] = entry['result']
+                          if entry['result'] == 'success':
+                              passed += 1
+                          else:
+                              failed += 1
+                          total += 1
+
+              # Second pass: group by suite
+              for test_name, test_info in test_results.items():
+                  suite_path = test_info['suite']
+                  if suite_path:
+                      # Extract suite name from path
+                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                      if suite_name not in suite_data:
+                          suite_data[suite_name] = {"passed": 0, "failed": 0}
+                      
+                      if test_info['status'] == 'success':
+                          suite_data[suite_name]["passed"] += 1
                       else:
-                          failed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["failed"] += 1
+                          suite_data[suite_name]["failed"] += 1
 
               with open("unit_test_report.md", "w") as f:
-                  f.write("# 🔧 Unit Tests Report\n\n")
-                  f.write("## 📊 Summary\n\n")
-                  f.write("| Metric | Value |\n|--------|-------|\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
-                  f.write(f"| **Total Tests** | {total} |\n")
-                  f.write(f"| **Passed Tests** | {passed} |\n")
-                  f.write(f"| **Failed Tests** | {failed} |\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
+                  f.write("# 🔧 Unit Tests Report\\n\\n")
+                  f.write("## 📊 Summary\\n\\n")
+                  f.write("| Metric | Value |\\n|--------|-------|\\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
+                  f.write(f"| **Total Tests** | {total} |\\n")
+                  f.write(f"| **Passed Tests** | {passed} |\\n")
+                  f.write(f"| **Failed Tests** | {failed} |\\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
 
-                  f.write("## 📋 Test Suite Results\n\n")
+                  f.write("## 📋 Test Suite Results\\n\\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\n")
-                      f.write(f"- **Status**: {status}\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
+                      f.write(f"### 🧪 {suite}\\n")
+                      f.write(f"- **Status**: {status}\\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Unit Tests Passed!\n")
+                      f.write("## ✅ All Unit Tests Passed!\\n")
                   else:
-                      f.write("## ❌ Some Unit Tests Failed\n")
-                      f.write("Check the CI logs for detailed failure information.\n")
+                      f.write("## ❌ Some Unit Tests Failed\\n")
+                      f.write("Check the CI logs for detailed failure information.\\n")
 
-                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
-
-              # Set outputs for GitHub Actions
-              print(f"::set-output name=total_tests::{total}")
-              print(f"::set-output name=passed_tests::{passed}")
-              print(f"::set-output name=failed_tests::{failed}")
-              print(f"::set-output name=status::{'passed' if failed == 0 else 'failed'}")
+                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("unit_test_report.md", "w") as f:
-                  f.write("# 🔧 Unit Tests Report\n\n")
-                  f.write("## ❌ Error Processing Test Results\n\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\n")
-              print("::set-output name=total_tests::0")
-              print("::set-output name=passed_tests::0")
-              print("::set-output name=failed_tests::0")
-              print("::set-output name=status::failed")
+                  f.write("# 🔧 Unit Tests Report\\n\\n")
+                  f.write("## ❌ Error Processing Test Results\\n\\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
           EOF
 
       - name: Set test results outputs
@@ -209,61 +214,76 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
+              test_results = {}  # Track individual test results
 
+              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
-                      if current_suite:
-                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      total += 1
+                      test_name = entry['test']['name']
+                      test_results[test_name] = {
+                          'suite': current_suite,
+                          'status': 'unknown'
+                      }
                   elif entry['type'] == 'testDone':
-                      if entry['result'] == 'success':
-                          passed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["passed"] += 1
+                      test_name = entry['test']['name']
+                      if test_name in test_results:
+                          test_results[test_name]['status'] = entry['result']
+                          if entry['result'] == 'success':
+                              passed += 1
+                          else:
+                              failed += 1
+                          total += 1
+
+              # Second pass: group by suite
+              for test_name, test_info in test_results.items():
+                  suite_path = test_info['suite']
+                  if suite_path:
+                      # Extract suite name from path
+                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                      if suite_name not in suite_data:
+                          suite_data[suite_name] = {"passed": 0, "failed": 0}
+                      
+                      if test_info['status'] == 'success':
+                          suite_data[suite_name]["passed"] += 1
                       else:
-                          failed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["failed"] += 1
+                          suite_data[suite_name]["failed"] += 1
 
               with open("widget_test_report.md", "w") as f:
-                  f.write("# 🎨 Widget Tests Report\n\n")
-                  f.write("## 📊 Summary\n\n")
-                  f.write("| Metric | Value |\n|--------|-------|\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
-                  f.write(f"| **Total Tests** | {total} |\n")
-                  f.write(f"| **Passed Tests** | {passed} |\n")
-                  f.write(f"| **Failed Tests** | {failed} |\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
+                  f.write("# 🎨 Widget Tests Report\\n\\n")
+                  f.write("## 📊 Summary\\n\\n")
+                  f.write("| Metric | Value |\\n|--------|-------|\\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
+                  f.write(f"| **Total Tests** | {total} |\\n")
+                  f.write(f"| **Passed Tests** | {passed} |\\n")
+                  f.write(f"| **Failed Tests** | {failed} |\\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
 
-                  f.write("## 📋 Test Suite Results\n\n")
+                  f.write("## 📋 Test Suite Results\\n\\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\n")
-                      f.write(f"- **Status**: {status}\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
+                      f.write(f"### 🧪 {suite}\\n")
+                      f.write(f"- **Status**: {status}\\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Widget Tests Passed!\n")
+                      f.write("## ✅ All Widget Tests Passed!\\n")
                   else:
-                      f.write("## ❌ Some Widget Tests Failed\n")
-                      f.write("Check the CI logs for detailed failure information.\n")
+                      f.write("## ❌ Some Widget Tests Failed\\n")
+                      f.write("Check the CI logs for detailed failure information.\\n")
 
-                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
+                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("widget_test_report.md", "w") as f:
-                  f.write("# 🎨 Widget Tests Report\n\n")
-                  f.write("## ❌ Error Processing Test Results\n\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\n")
+                  f.write("# 🎨 Widget Tests Report\\n\\n")
+                  f.write("## ❌ Error Processing Test Results\\n\\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
           EOF
 
       - name: Set test results outputs
@@ -347,61 +367,76 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
+              test_results = {}  # Track individual test results
 
+              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
-                      if current_suite:
-                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      total += 1
+                      test_name = entry['test']['name']
+                      test_results[test_name] = {
+                          'suite': current_suite,
+                          'status': 'unknown'
+                      }
                   elif entry['type'] == 'testDone':
-                      if entry['result'] == 'success':
-                          passed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["passed"] += 1
+                      test_name = entry['test']['name']
+                      if test_name in test_results:
+                          test_results[test_name]['status'] = entry['result']
+                          if entry['result'] == 'success':
+                              passed += 1
+                          else:
+                              failed += 1
+                          total += 1
+
+              # Second pass: group by suite
+              for test_name, test_info in test_results.items():
+                  suite_path = test_info['suite']
+                  if suite_path:
+                      # Extract suite name from path
+                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                      if suite_name not in suite_data:
+                          suite_data[suite_name] = {"passed": 0, "failed": 0}
+                      
+                      if test_info['status'] == 'success':
+                          suite_data[suite_name]["passed"] += 1
                       else:
-                          failed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["failed"] += 1
+                          suite_data[suite_name]["failed"] += 1
 
               with open("accessibility_test_report.md", "w") as f:
-                  f.write("# ♿ Accessibility Tests Report\n\n")
-                  f.write("## 📊 Summary\n\n")
-                  f.write("| Metric | Value |\n|--------|-------|\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
-                  f.write(f"| **Total Tests** | {total} |\n")
-                  f.write(f"| **Passed Tests** | {passed} |\n")
-                  f.write(f"| **Failed Tests** | {failed} |\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
+                  f.write("# ♿ Accessibility Tests Report\\n\\n")
+                  f.write("## 📊 Summary\\n\\n")
+                  f.write("| Metric | Value |\\n|--------|-------|\\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
+                  f.write(f"| **Total Tests** | {total} |\\n")
+                  f.write(f"| **Passed Tests** | {passed} |\\n")
+                  f.write(f"| **Failed Tests** | {failed} |\\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
 
-                  f.write("## 📋 Test Suite Results\n\n")
+                  f.write("## 📋 Test Suite Results\\n\\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\n")
-                      f.write(f"- **Status**: {status}\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
+                      f.write(f"### 🧪 {suite}\\n")
+                      f.write(f"- **Status**: {status}\\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Accessibility Tests Passed!\n")
+                      f.write("## ✅ All Accessibility Tests Passed!\\n")
                   else:
-                      f.write("## ❌ Some Accessibility Tests Failed\n")
-                      f.write("Check the CI logs for detailed failure information.\n")
+                      f.write("## ❌ Some Accessibility Tests Failed\\n")
+                      f.write("Check the CI logs for detailed failure information.\\n")
 
-                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
+                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("accessibility_test_report.md", "w") as f:
-                  f.write("# ♿ Accessibility Tests Report\n\n")
-                  f.write("## ❌ Error Processing Test Results\n\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\n")
+                  f.write("# ♿ Accessibility Tests Report\\n\\n")
+                  f.write("## ❌ Error Processing Test Results\\n\\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
           EOF
 
       - name: Set test results outputs
@@ -497,61 +532,76 @@ jobs:
               total = passed = failed = 0
               suite_data = {}
               current_suite = None
+              test_results = {}  # Track individual test results
 
+              # First pass: collect all test results
               for entry in lines:
                   if entry['type'] == 'suite':
                       current_suite = entry['suite']['path']
-                      if current_suite:
-                          name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                          suite_data.setdefault(name, {"passed": 0, "failed": 0})
                   elif entry['type'] == 'testStart':
-                      total += 1
+                      test_name = entry['test']['name']
+                      test_results[test_name] = {
+                          'suite': current_suite,
+                          'status': 'unknown'
+                      }
                   elif entry['type'] == 'testDone':
-                      if entry['result'] == 'success':
-                          passed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["passed"] += 1
+                      test_name = entry['test']['name']
+                      if test_name in test_results:
+                          test_results[test_name]['status'] = entry['result']
+                          if entry['result'] == 'success':
+                              passed += 1
+                          else:
+                              failed += 1
+                          total += 1
+
+              # Second pass: group by suite
+              for test_name, test_info in test_results.items():
+                  suite_path = test_info['suite']
+                  if suite_path:
+                      # Extract suite name from path
+                      suite_name = suite_path.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
+                      if suite_name not in suite_data:
+                          suite_data[suite_name] = {"passed": 0, "failed": 0}
+                      
+                      if test_info['status'] == 'success':
+                          suite_data[suite_name]["passed"] += 1
                       else:
-                          failed += 1
-                          if current_suite:
-                              suite_name = current_suite.split('/')[-1].replace('_test.dart', '').replace('_', ' ').title()
-                              suite_data[suite_name]["failed"] += 1
+                          suite_data[suite_name]["failed"] += 1
 
               with open("golden_test_report.md", "w") as f:
-                  f.write("# 📸 Golden Tests Report\n\n")
-                  f.write("## 📊 Summary\n\n")
-                  f.write("| Metric | Value |\n|--------|-------|\n")
-                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\n")
-                  f.write(f"| **Total Tests** | {total} |\n")
-                  f.write(f"| **Passed Tests** | {passed} |\n")
-                  f.write(f"| **Failed Tests** | {failed} |\n")
-                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\n\n")
+                  f.write("# 📸 Golden Tests Report\\n\\n")
+                  f.write("## 📊 Summary\\n\\n")
+                  f.write("| Metric | Value |\\n|--------|-------|\\n")
+                  f.write(f"| **Status** | {'✅ PASSED' if failed == 0 else '❌ FAILED'} |\\n")
+                  f.write(f"| **Total Tests** | {total} |\\n")
+                  f.write(f"| **Passed Tests** | {passed} |\\n")
+                  f.write(f"| **Failed Tests** | {failed} |\\n")
+                  f.write(f"| **Success Rate** | {round((passed/total)*100) if total else 0}% |\\n\\n")
 
-                  f.write("## 📋 Test Suite Results\n\n")
+                  f.write("## 📋 Test Suite Results\\n\\n")
                   for suite, stats in suite_data.items():
                       suite_total = stats["passed"] + stats["failed"]
                       status = "✅ PASSED" if stats["failed"] == 0 else "❌ FAILED"
-                      f.write(f"### 🧪 {suite}\n")
-                      f.write(f"- **Status**: {status}\n")
-                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\n")
-                      f.write(f"- **Failed Tests**: {stats['failed']}\n\n")
+                      f.write(f"### 🧪 {suite}\\n")
+                      f.write(f"- **Status**: {status}\\n")
+                      f.write(f"- **Tests**: {stats['passed']}/{suite_total} passed\\n")
+                      f.write(f"- **Failed Tests**: {stats['failed']}\\n\\n")
 
                   if failed == 0:
-                      f.write("## ✅ All Golden Tests Passed!\n")
+                      f.write("## ✅ All Golden Tests Passed!\\n")
                   else:
-                      f.write("## ❌ Some Golden Tests Failed\n")
-                      f.write("Check the CI logs for detailed failure information.\n")
+                      f.write("## ❌ Some Golden Tests Failed\\n")
+                      f.write("Check the CI logs for detailed failure information.\\n")
 
-                  f.write("\n---\n*Report generated automatically by GitHub Actions CI Pipeline*\n")
+                  f.write("\\n---\\n*Report generated automatically by GitHub Actions CI Pipeline*\\n")
 
           except Exception as e:
               print(f"Error processing test output: {e}")
               # Create a basic report if parsing fails
               with open("golden_test_report.md", "w") as f:
-                  f.write("# 📸 Golden Tests Report\n\n")
-                  f.write("## ❌ Error Processing Test Results\n\n")
-                  f.write("Unable to parse test output. Check the CI logs for details.\n")
+                  f.write("# 📸 Golden Tests Report\\n\\n")
+                  f.write("## ❌ Error Processing Test Results\\n\\n")
+                  f.write("Unable to parse test output. Check the CI logs for details.\\n")
           EOF
 
       - name: Set test results outputs
