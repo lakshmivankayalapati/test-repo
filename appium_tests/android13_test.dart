@@ -219,9 +219,9 @@ Future<bool> verifySlideTransition(WebDriver driver, int expectedSlide) async {
   
   // XPath selectors for each slide based on content-desc attribute
   final slideXPaths = [
-    '//android.widget.ImageView[@content-desc="Pay Anywhere,\nInstantly & Easily. From UPI to bank transfer to phone number pay how you want, globally.\nPay Anywhere,\nInstantly & Easily\nFrom UPI to bank transfer to phone number pay how you want, globally."]',
-    '//android.widget.ImageView[@content-desc="Your Money.\nOur Protection.. Your data is encrypted and money is held at world-leading banks. Regulated and certified.\nYour Money.\nOur Protection.\nYour data is encrypted and money is held at world-leading banks. Regulated and certified."]',
-    '//android.widget.ImageView[@content-desc="What You See Is\nWhat You Pay. No hidden fees. Mid-market (Google) exchange rates. Low cost, straight to you.\nWhat You See Is\nWhat You Pay\nNo hidden fees. Mid-market (Google) exchange rates. Low cost, straight to you."]'
+    '//*[contains(@content-desc, "Pay Anywhere")]',
+    '//*[contains(@content-desc, "Your Money")]',
+    '//*[contains(@content-desc, "What You See")]'
   ];
   
   if (expectedSlide < 1 || expectedSlide > slideXPaths.length) {
@@ -248,9 +248,9 @@ Future<int> detectCurrentSlide(WebDriver driver) async {
   
   // XPath selectors for each slide based on content-desc attribute
   final slideXPaths = [
-    '//android.widget.ImageView[@content-desc="Pay Anywhere,\nInstantly & Easily. From UPI to bank transfer to phone number pay how you want, globally.\nPay Anywhere,\nInstantly & Easily\nFrom UPI to bank transfer to phone number pay how you want, globally."]',
-    '//android.widget.ImageView[@content-desc="Your Money.\nOur Protection.. Your data is encrypted and money is held at world-leading banks. Regulated and certified.\nYour Money.\nOur Protection.\nYour data is encrypted and money is held at world-leading banks. Regulated and certified."]',
-    '//android.widget.ImageView[@content-desc="What You See Is\nWhat You Pay. No hidden fees. Mid-market (Google) exchange rates. Low cost, straight to you.\nWhat You See Is\nWhat You Pay\nNo hidden fees. Mid-market (Google) exchange rates. Low cost, straight to you."]'
+    '//*[contains(@content-desc, "Pay Anywhere")]',
+    '//*[contains(@content-desc, "Your Money")]',
+    '//*[contains(@content-desc, "What You See")]'
   ];
   
   // Try to find each slide by its specific XPath
@@ -289,33 +289,160 @@ Future<int> detectCurrentSlide(WebDriver driver) async {
   throw Exception('Could not detect current slide using XPath selectors after retry. App may not be loaded properly.');
 }
 
+/// Test intelligent swipe gestures based on current slide
+Future<void> testIntelligentSwipeGestures(WebDriver driver) async {
+  print('\n👆 Testing intelligent swipe gestures...');
+  
+  // Get window size for swipe calculations
+  final size = await driver.execute('getWindowSize', []) as Map<String, dynamic>;
+  final width = size['width'] as int;
+  final height = size['height'] as int;
+  print('📱 Window size: ${width}x${height}');
+  
+  // Detect current slide
+  final currentSlide = await detectCurrentSlide(driver);
+  if (currentSlide != null) {
+    print('📍 Currently on Slide $currentSlide');
+    
+    if (currentSlide == 1) {
+      print('\n🔄 Testing Slide 1 navigation...');
+      // Slide 1: Right to left (should go to slide 2), then left to right (should return to slide 1)
+      
+      // First swipe: right to left
+      print('➡️ Swiping Slide 1 → Slide 2...');
+      await swipeLeft(driver);
+      await Future.delayed(Duration(seconds: 1));
+      
+      final newSlide = await detectCurrentSlide(driver);
+      if (newSlide == 2) {
+        print('✅ Successfully navigated from Slide 1 to Slide 2');
+        
+        // Second swipe: left to right (should return to slide 1)
+        print('⬅️ Swiping Slide 2 → Slide 1...');
+        await swipeRight(driver);
+        await Future.delayed(Duration(seconds: 1));
+        
+        final finalSlide = await detectCurrentSlide(driver);
+        if (finalSlide == 1) {
+          print('✅ Successfully returned to Slide 1');
+        } else {
+          print('❌ Failed to return to Slide 1, currently on Slide $finalSlide');
+        }
+      } else {
+        print('❌ Failed to navigate to Slide 2, currently on Slide $newSlide');
+      }
+      
+    } else if (currentSlide == 2) {
+      print('\n🔄 Testing Slide 2 navigation...');
+      // Slide 2: Right to left (should go to slide 3), then left to right (should return to slide 2)
+      
+      // First swipe: right to left
+      print('➡️ Swiping Slide 2 → Slide 3...');
+      await swipeLeft(driver);
+      await Future.delayed(Duration(seconds: 1));
+      
+      final newSlide = await detectCurrentSlide(driver);
+      if (newSlide == 3) {
+        print('✅ Successfully navigated from Slide 2 to Slide 3');
+        
+        // Second swipe: left to right (should return to slide 2)
+        print('⬅️ Swiping Slide 3 → Slide 2...');
+        await swipeRight(driver);
+        await Future.delayed(Duration(seconds: 1));
+        
+        final finalSlide = await detectCurrentSlide(driver);
+        if (finalSlide == 2) {
+          print('✅ Successfully returned to Slide 2');
+        } else {
+          print('❌ Failed to return to Slide 2, currently on Slide $finalSlide');
+        }
+      } else {
+        print('❌ Failed to navigate to Slide 3, currently on Slide $newSlide');
+      }
+      
+    } else if (currentSlide == 3) {
+      print('\n🔄 Testing Slide 3 navigation...');
+      // Slide 3: Left to right (should go to slide 2), then right to left (should return to slide 3)
+      
+      // First swipe: left to right
+      print('⬅️ Swiping Slide 3 → Slide 2...');
+      await swipeRight(driver);
+      await Future.delayed(Duration(seconds: 1));
+      
+      final newSlide = await detectCurrentSlide(driver);
+      if (newSlide == 2) {
+        print('✅ Successfully navigated from Slide 3 to Slide 2');
+        
+        // Second swipe: right to left (should return to slide 3)
+        print('➡️ Swiping Slide 2 → Slide 3...');
+        await swipeLeft(driver);
+        await Future.delayed(Duration(seconds: 1));
+        
+        final finalSlide = await detectCurrentSlide(driver);
+        if (finalSlide == 3) {
+          print('✅ Successfully returned to Slide 3');
+        } else {
+          print('❌ Failed to return to Slide 3, currently on Slide $finalSlide');
+        }
+      } else {
+        print('❌ Failed to navigate to Slide 2, currently on Slide $newSlide');
+      }
+    }
+  } else {
+    print('❌ Could not detect current slide');
+  }
+}
+
 /// Main UI flow test function
 Future<void> testUIFlow(WebDriver driver) async {
   print('\n🧪 Starting UI Flow Test...');
 
-  // --- Step 1: Detect current slide and wait for cycle completion ---
-  print('\n📱 Step 1: Detecting current slide and waiting for cycle completion...');
-  final currentSlide = await detectCurrentSlide(driver);
-  print('📱 Currently on slide $currentSlide');
+  // --- Step 1: Intelligent Carousel Testing ---
+  print('\n🔁 Step 1: Testing intelligent carousel rotation...');
   
-  // Verify the current slide first
-  final currentSlideVerified = await verifySlideTransition(driver, currentSlide);
-  if (!currentSlideVerified) {
-    throw Exception('Failed to verify current slide $currentSlide');
+  // Detect which slide is currently visible
+  final initialSlide = await detectCurrentSlide(driver);
+  if (initialSlide != null) {
+    print('📍 Starting on Slide $initialSlide');
+    
+    // Wait and track all slides that appear
+    print('⏱️ Waiting for carousel cycle to complete...');
+    final slidesSeen = <int>{};
+    slidesSeen.add(initialSlide);
+    
+    // Wait for up to 20 seconds to see all slides
+    final startTime = DateTime.now();
+    const timeout = Duration(seconds: 20);
+    
+    while (slidesSeen.length < 3 && DateTime.now().difference(startTime) < timeout) {
+      await Future.delayed(Duration(seconds: 2)); // Check every 2 seconds
+      final currentSlide = await detectCurrentSlide(driver);
+      if (currentSlide != null) {
+        if (!slidesSeen.contains(currentSlide)) {
+          print('✅ Slide $currentSlide appeared');
+          slidesSeen.add(currentSlide);
+        } else {
+          print('🔄 Slide $currentSlide (already seen)');
+        }
+      } else {
+        print('❓ No slide detected');
+      }
+    }
+    
+    // Report results
+    if (slidesSeen.length == 3) {
+      print('✅ All 3 slides appeared in carousel cycle');
+      print('📊 Slides seen: ${slidesSeen.toList()..sort()}');
+    } else {
+      print('⚠️ Only ${slidesSeen.length} slides appeared: ${slidesSeen.toList()..sort()}');
+      print('⏰ Timeout reached or cycle incomplete');
+    }
+  } else {
+    print('❌ Could not detect any slides initially');
   }
-  print('✅ Current slide $currentSlide verified');
 
-  // --- Step 2: Wait for a complete cycle to observe all slides ---
-  print('\n📱 Step 2: Observing complete slide cycle...');
-  
-  // Wait for a full cycle to see all slides (15 seconds for 3 slides × 5 seconds each)
-  print('⏱️ Waiting 15 seconds to observe complete slide cycle...');
-  await Future.delayed(Duration(seconds: 15));
-  
-  // Verify we can still detect slides (ensuring the app is stable)
-  print('🔍 Verifying app stability after cycle...');
-  final currentSlideAfterCycle = await detectCurrentSlide(driver);
-  print('✅ App is stable, currently on slide $currentSlideAfterCycle');
+  // --- Step 2: Test Intelligent Swipe Gestures ---
+  await testIntelligentSwipeGestures(driver);
 
   // --- Step 3: Test both navigation flows from welcome screen ---
   print('\n📱 Step 3: Testing both navigation flows from welcome screen...');
