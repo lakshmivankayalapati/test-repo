@@ -943,10 +943,584 @@ jobs:
             appium_test_report.md
           retention-days: 30
 
+  # Performance Metrics Tests
+  performance-metrics-tests:
+    runs-on: ubuntu-latest
+    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests]
+    outputs:
+      status: ${{ steps.test-results.outputs.status }}
+      passed_tests: ${{ steps.test-results.outputs.passed_tests }}
+      failed_tests: ${{ steps.test-results.outputs.failed_tests }}
+      total_tests: ${{ steps.test-results.outputs.total_tests }}
+      failure_details: ${{ steps.test-results.outputs.failure_details }}
+      test_output: ${{ steps.test-results.outputs.test_output }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install Appium-Python-Client selenium requests statistics
+
+      - name: Build Flutter APK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build APK for LambdaTest
+        run: |
+          flutter build apk --release
+          echo "APK built successfully"
+
+      - name: Upload APK to LambdaTest
+        id: upload-apk
+        run: |
+          # Install curl if not available
+          sudo apt-get update && sudo apt-get install -y curl
+          
+          # Upload APK to LambdaTest
+          echo "Uploading APK to LambdaTest..."
+          UPLOAD_RESPONSE=$(curl -u "${{ secrets.LAMBDATEST_USERID }}:${{ secrets.LAMBDATEST_ACCESS_KEY }}" \
+            -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
+            -F "appFile=@build/app/outputs/flutter-apk/app-release.apk" \
+            -F "type=app-automate")
+          
+          echo "Upload response: $UPLOAD_RESPONSE"
+          
+          # Extract app URL from response
+          APP_URL=$(echo "$UPLOAD_RESPONSE" | grep -o '"app_url":"[^"]*"' | cut -d'"' -f4)
+          
+          if [ -z "$APP_URL" ]; then
+            echo "❌ Failed to extract app URL from upload response"
+            exit 1
+          fi
+          
+          echo "✅ APK uploaded successfully. App URL: $APP_URL"
+          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+
+      - name: Run Performance Metrics Test
+        id: run-performance-tests
+        env:
+          LAMBDATEST_USERID: ${{ secrets.LAMBDATEST_USERID }}
+          LAMBDATEST_ACCESS_KEY: ${{ secrets.LAMBDATEST_ACCESS_KEY }}
+          APP_URL: ${{ steps.upload-apk.outputs.app_url }}
+        run: |
+          # Create the performance metrics test script for CI
+          cat > perf_metrics_ci.py << 'EOF'
+          #!/usr/bin/env python3
+          """
+          Performance Metrics Test for CI Pipeline
+          ========================================
+          
+          This script runs performance tests in the CI environment.
+          """
+
+          import time
+          import json
+          import statistics
+          import requests
+          import os
+          import sys
+          from datetime import datetime
+          from appium import webdriver
+          from appium.options.android import UiAutomator2Options
+          from selenium.webdriver.common.by import By
+          import warnings
+
+          warnings.filterwarnings("ignore", message="Embedding username and password in URL could be insecure")
+
+          # Configuration from environment variables
+          username = os.environ.get('LAMBDATEST_USERID')
+          access_key = os.environ.get('LAMBDATEST_ACCESS_KEY')
+          app_url = os.environ.get('APP_URL')
+
+          # App configuration
+          app_package = "com.example.sliq_pay"
+          app_activity = "com.example.sliq_pay.MainActivity"
+
+          # Performance test configuration
+          TARGET_COLD_LAUNCHES = 5  # Reduced for CI
+          FRAME_DROP_THRESHOLD = 0
+          MIN_FPS_THRESHOLD = 50  # Slightly lower for CI
+
+          class CIPerformanceTest:
+              def __init__(self):
+                  self.cold_launch_times = []
+                  self.session_id = None
+                  self.test_start_time = None
+                  self.test_end_time = None
+                  self.driver = None
+                  self.driver_closed = False
+
+              def create_driver(self):
+                  """Create and configure the Appium driver for CI performance testing."""
+                  options = UiAutomator2Options()
+                  options.platform_name = "Android"
+                  options.device_name = "Google Pixel 4a"
+                  options.platform_version = "12"
+                  options.set_capability("isRealMobile", True)
+                  options.set_capability("app", app_url)
+                  options.set_capability("build", "CI Performance Test")
+                  options.set_capability("name", "CI Performance Metrics Test")
+                  options.set_capability("deviceOrientation", "PORTRAIT")
+                  
+                  # LambdaTest App Performance Analytics capabilities
+                  options.set_capability("appProfiling", True)
+                  options.set_capability("resignApp", True)
+                  options.set_capability("network", True)
+                  options.set_capability("video", True)
+                  options.set_capability("console", True)
+                  options.set_capability("logcat", True)
+                  options.set_capability("autoGrantPermissions", True)
+                  
+                  self.driver = webdriver.Remote(
+                      command_executor=f"https://{username}:{access_key}@mobile-hub.lambdatest.com/wd/hub",
+                      options=options
+                  )
+                  
+                  self.session_id = self.driver.session_id
+                  print(f"✅ Driver initialized successfully with session ID: {self.session_id}")
+
+              def perform_cold_launch(self, iteration_num):
+                  """Perform a single cold launch and measure performance metrics."""
+                  print(f"🔄 Cold Launch Iteration {iteration_num}")
+                  
+                  try:
+                      # Force stop the app to ensure cold start
+                      self.driver.terminate_app(app_package)
+                      time.sleep(0.5)
+                      
+                      # Record start time for cold launch measurement
+                      start_time = time.time()
+                      
+                      # Launch the app (cold start)
+                      self.driver.activate_app(app_package)
+                      
+                      # Wait for app to be fully loaded
+                      max_wait = 10
+                      app_loaded = False
+                      
+                      for _ in range(max_wait * 2):
+                          try:
+                              self.driver.find_element(By.XPATH, "//*[contains(@content-desc, 'Pay Anywhere') or contains(@content-desc, 'Get Started') or contains(@content-desc, 'Log In')]")
+                              app_loaded = True
+                              break
+                          except:
+                              time.sleep(0.5)
+                              continue
+                      
+                      # Record end time and calculate cold launch time
+                      end_time = time.time()
+                      cold_launch_time_ms = (end_time - start_time) * 1000
+                      
+                      if app_loaded:
+                          print(f"✅ Cold Launch {iteration_num}: {cold_launch_time_ms:.2f}ms")
+                          return {
+                              'success': True,
+                              'cold_launch_time_ms': cold_launch_time_ms,
+                              'app_loaded': True
+                          }
+                      else:
+                          print(f"❌ Cold Launch {iteration_num}: App failed to load within {max_wait}s")
+                          return {
+                              'success': False,
+                              'cold_launch_time_ms': cold_launch_time_ms,
+                              'app_loaded': False
+                          }
+                          
+                  except Exception as e:
+                      print(f"❌ Error during cold launch {iteration_num}: {e}")
+                      return {
+                          'success': False,
+                          'cold_launch_time_ms': 0,
+                          'app_loaded': False,
+                          'error': str(e)
+                      }
+
+              def terminate_session(self, session_id):
+                  """Terminate the LambdaTest session to prevent timeout."""
+                  try:
+                      print(f"🛑 Terminating session {session_id}...")
+                      terminate_url = f"https://{username}:{access_key}@mobile-api.lambdatest.com/mobile-automation/api/v1/sessions/{session_id}/stop"
+                      response = requests.post(terminate_url)
+                      
+                      if response.status_code == 200:
+                          print(f"✅ Session {session_id} terminated successfully")
+                          return True
+                      else:
+                          print(f"⚠️  Failed to terminate session {session_id}: {response.status_code}")
+                          return False
+                          
+                  except Exception as e:
+                      print(f"❌ Error terminating session {session_id}: {e}")
+                      return False
+
+              def extract_session_data(self, session_id):
+                  """Extract session data using the standalone approach after session termination."""
+                  print(f"🔍 Extracting session data for: {session_id}")
+                  
+                  try:
+                      # Fetch app profiling metrics
+                      profiling_url = f"https://{username}:{access_key}@mobile-api.lambdatest.com/mobile-automation/api/v1/sessions/{session_id}/log/appmetrics"
+                      profiling_response = requests.get(profiling_url)
+                      
+                      # Fetch session details
+                      session_url = f"https://{username}:{access_key}@mobile-api.lambdatest.com/mobile-automation/api/v1/sessions/{session_id}"
+                      session_response = requests.get(session_url)
+                      
+                      # Fetch video URL
+                      video_url = f"https://{username}:{access_key}@mobile-api.lambdatest.com/mobile-automation/api/v1/sessions/{session_id}/video"
+                      video_response = requests.get(video_url)
+                      
+                      session_data = {
+                          'session_id': session_id,
+                          'profiling_metrics': profiling_response.json() if profiling_response.status_code == 200 else None,
+                          'session_details': session_response.json() if session_response.status_code == 200 else None,
+                          'video_url': video_response.json() if video_response.status_code == 200 else None,
+                          'session_url': f"https://mobile.lambdatest.com/build/{session_id}",
+                          'extraction_timestamp': datetime.now().isoformat()
+                      }
+                      
+                      print(f"✅ Successfully extracted session data for {session_id}")
+                      return session_data
+                      
+                  except Exception as e:
+                      print(f"❌ Error extracting session data: {e}")
+                      return None
+
+              def analyze_performance_metrics(self, session_data):
+                  """Analyze performance metrics from session data."""
+                  if not session_data or not session_data.get('profiling_metrics'):
+                      print("⚠️  No profiling metrics available")
+                      return {
+                          'cold_startup_time': 0,
+                          'hot_startup_time': 0,
+                          'max_cpu_utilization': 0,
+                          'avg_cpu': 0,
+                          'max_memory_usage': 0,
+                          'avg_memory_usage': 0,
+                          'avg_frame_rate': 60,
+                          'anr_count': 0,
+                          'app_crashes': 0,
+                          'battery_drain_rate': 0,
+                          'temperature': 0,
+                          'network_download': 0,
+                          'network_upload': 0,
+                          'avg_disk': 0,
+                          'max_disk_usage': 0
+                      }
+                  
+                  try:
+                      profiling = session_data['profiling_metrics']
+                      
+                      # Initialize metrics with default values
+                      metrics = {
+                          'cold_startup_time': 0,
+                          'hot_startup_time': 0,
+                          'max_cpu_utilization': 0,
+                          'avg_cpu': 0,
+                          'max_memory_usage': 0,
+                          'avg_memory_usage': 0,
+                          'avg_frame_rate': 60,
+                          'anr_count': 0,
+                          'app_crashes': 0,
+                          'battery_drain_rate': 0,
+                          'temperature': 0,
+                          'network_download': 0,
+                          'network_upload': 0,
+                          'avg_disk': 0,
+                          'max_disk_usage': 0
+                      }
+                      
+                      # Extract metrics from meta section if available
+                      if profiling.get('meta'):
+                          meta = profiling['meta']
+                          metrics.update({
+                              'cold_startup_time': meta.get('coldStartup', 0),
+                              'hot_startup_time': meta.get('hotStartup', 0),
+                              'max_cpu_utilization': meta.get('maxCPUUtilization', 0),
+                              'avg_cpu': meta.get('avgCpu', 0),
+                              'max_memory_usage': meta.get('maxMemoryUsage', 0),
+                              'avg_memory_usage': meta.get('avgMemory', 0),
+                              'avg_frame_rate': meta.get('avgFrameRate', 60),
+                              'anr_count': meta.get('anrCount', 0),
+                              'app_crashes': meta.get('crashCount', 0),
+                              'network_download': meta.get('networkDownload', 0),
+                              'network_upload': meta.get('networkUpload', 0),
+                              'avg_disk': meta.get('avgDisk', 0),
+                              'max_disk_usage': meta.get('maxDiskUsage', 0)
+                          })
+                      
+                      print(f"📊 Extracted Performance Metrics:")
+                      print(f"   Cold Startup Time: {metrics['cold_startup_time']}ms")
+                      print(f"   Hot Startup Time: {metrics['hot_startup_time']}ms")
+                      print(f"   Max CPU: {metrics['max_cpu_utilization']:.1f}%")
+                      print(f"   Avg CPU: {metrics['avg_cpu']:.1f}%")
+                      print(f"   Max Memory: {metrics['max_memory_usage']:.1f}MB")
+                      print(f"   Avg Memory: {metrics['avg_memory_usage']:.1f}MB")
+                      print(f"   Avg Frame Rate: {metrics['avg_frame_rate']:.1f} FPS")
+                      print(f"   ANR Count: {metrics['anr_count']}")
+                      print(f"   App Crashes: {metrics['app_crashes']}")
+                      
+                      return metrics
+                      
+                  except Exception as e:
+                      print(f"❌ Error analyzing performance metrics: {e}")
+                      return {
+                          'cold_startup_time': 0,
+                          'hot_startup_time': 0,
+                          'max_cpu_utilization': 0,
+                          'avg_cpu': 0,
+                          'max_memory_usage': 0,
+                          'avg_memory_usage': 0,
+                          'avg_frame_rate': 60,
+                          'anr_count': 0,
+                          'app_crashes': 0,
+                          'battery_drain_rate': 0,
+                          'temperature': 0,
+                          'network_download': 0,
+                          'network_upload': 0,
+                          'avg_disk': 0,
+                          'max_disk_usage': 0
+                      }
+
+              def run_performance_test(self):
+                  """Run the performance test for CI."""
+                  print("🚀 Starting CI Performance Test")
+                  print("=" * 60)
+                  print(f"🎯 Target: {TARGET_COLD_LAUNCHES} cold launches")
+                  print(f"📱 Device: Google Pixel 4a")
+                  print(f"🔧 App Profiling: Enabled")
+                  print("=" * 60)
+                  
+                  try:
+                      # Initialize driver
+                      self.create_driver()
+                      self.test_start_time = datetime.now()
+                      
+                      successful_launches = 0
+                      failed_launches = 0
+                      
+                      print(f"🔄 Starting {TARGET_COLD_LAUNCHES} cold launch iterations...")
+                      print("-" * 50)
+                      
+                      # Perform cold launches
+                      for iteration in range(1, TARGET_COLD_LAUNCHES + 1):
+                          result = self.perform_cold_launch(iteration)
+                          
+                          if result['success'] and result['app_loaded']:
+                              successful_launches += 1
+                              self.cold_launch_times.append(result['cold_launch_time_ms'])
+                          else:
+                              failed_launches += 1
+                          
+                          # Progress indicator
+                          if iteration % 2 == 0:
+                              print(f"📊 Progress: {iteration}/{TARGET_COLD_LAUNCHES} launches completed")
+                      
+                      self.test_end_time = datetime.now()
+                      
+                      # Close the driver first
+                      if self.driver and not self.driver_closed:
+                          self.driver.quit()
+                          self.driver_closed = True
+                          print("🔚 Driver closed")
+                      
+                      # Terminate the session to prevent timeout
+                      session_id = self.session_id
+                      print(f"\n🛑 Terminating session to prevent timeout...")
+                      self.terminate_session(session_id)
+                      
+                      # Wait a moment for session to fully terminate
+                      print("⏳ Waiting for session termination to complete...")
+                      time.sleep(10)
+                      
+                      # Extract session data using standalone approach
+                      print(f"\n📊 Extracting session data using standalone approach...")
+                      session_data = self.extract_session_data(session_id)
+                      
+                      if session_data:
+                          # Analyze performance metrics
+                          performance_metrics = self.analyze_performance_metrics(session_data)
+                          
+                          # Generate CI test results
+                          test_results = self.generate_ci_results(session_data, performance_metrics, successful_launches, failed_launches)
+                          
+                          # Write results to file
+                          with open('performance_test_results.json', 'w') as f:
+                              json.dump(test_results, f, indent=2)
+                          
+                          print("✅ Performance test completed successfully")
+                          return test_results
+                      else:
+                          print("❌ Failed to extract session data")
+                          return {
+                              'status': 'failed',
+                              'error': 'Failed to extract session data',
+                              'passed_tests': 0,
+                              'failed_tests': 1,
+                              'total_tests': 1
+                          }
+                      
+                  except Exception as e:
+                      print(f"❌ Performance test failed: {e}")
+                      # Ensure driver is closed even on error
+                      if self.driver and not self.driver_closed:
+                          try:
+                              self.driver.quit()
+                              self.driver_closed = True
+                              print("🔚 Driver closed due to error")
+                          except Exception as quit_error:
+                              print(f"⚠️  Driver already closed or error during quit: {quit_error}")
+                      
+                      return {
+                          'status': 'failed',
+                          'error': str(e),
+                          'passed_tests': 0,
+                          'failed_tests': 1,
+                          'total_tests': 1
+                      }
+
+              def generate_ci_results(self, session_data, performance_metrics, successful_launches, failed_launches):
+                  """Generate CI test results."""
+                  # Calculate test statistics
+                  test_duration_seconds = (self.test_end_time - self.test_start_time).total_seconds()
+                  avg_cold_launch_time = statistics.mean(self.cold_launch_times) if self.cold_launch_times else 0
+                  min_cold_launch_time = min(self.cold_launch_times) if self.cold_launch_times else 0
+                  max_cold_launch_time = max(self.cold_launch_times) if self.cold_launch_times else 0
+                  
+                  # Performance assessment
+                  performance_passed = successful_launches >= TARGET_COLD_LAUNCHES * 0.8  # 80% success rate
+                  frame_drop_passed = performance_metrics['anr_count'] <= FRAME_DROP_THRESHOLD
+                  fps_passed = performance_metrics['avg_frame_rate'] >= MIN_FPS_THRESHOLD
+                  overall_passed = performance_passed and frame_drop_passed and fps_passed
+                  
+                  results = {
+                      'status': 'passed' if overall_passed else 'failed',
+                      'test_info': {
+                          'target_launches': TARGET_COLD_LAUNCHES,
+                          'successful_launches': successful_launches,
+                          'failed_launches': failed_launches,
+                          'success_rate': (successful_launches/TARGET_COLD_LAUNCHES)*100,
+                          'test_duration_seconds': test_duration_seconds,
+                          'session_id': self.session_id
+                      },
+                      'performance_data': {
+                          'cold_launch_times': self.cold_launch_times,
+                          'avg_cold_launch_time': avg_cold_launch_time,
+                          'min_cold_launch_time': min_cold_launch_time,
+                          'max_cold_launch_time': max_cold_launch_time
+                      },
+                      'lambdatest_metrics': performance_metrics,
+                      'test_results': {
+                          'launch_success': performance_passed,
+                          'anr_events': frame_drop_passed,
+                          'fps_target': fps_passed,
+                          'overall_result': overall_passed
+                      },
+                      'passed_tests': 1 if overall_passed else 0,
+                      'failed_tests': 0 if overall_passed else 1,
+                      'total_tests': 1
+                  }
+                  
+                  print(f"\n📊 CI Performance Test Results:")
+                  print(f"   Overall Result: {'✅ PASSED' if overall_passed else '❌ FAILED'}")
+                  print(f"   Launch Success: {'✅ PASSED' if performance_passed else '❌ FAILED'}")
+                  print(f"   ANR Events: {'✅ PASSED' if frame_drop_passed else '❌ FAILED'}")
+                  print(f"   FPS Target: {'✅ PASSED' if fps_passed else '❌ FAILED'}")
+                  print(f"   Success Rate: {(successful_launches/TARGET_COLD_LAUNCHES)*100:.2f}%")
+                  print(f"   Avg Launch Time: {avg_cold_launch_time:.2f}ms")
+                  print(f"   Avg Frame Rate: {performance_metrics['avg_frame_rate']:.1f} FPS")
+                  
+                  return results
+
+          def main():
+              print("🚀 CI PERFORMANCE METRICS TEST")
+              print("=" * 80)
+              
+              # Create and run the performance test
+              test = CIPerformanceTest()
+              results = test.run_performance_test()
+              
+              # Exit with appropriate code
+              if results['status'] == 'passed':
+                  print("✅ Performance test passed")
+                  sys.exit(0)
+              else:
+                  print("❌ Performance test failed")
+                  sys.exit(1)
+
+          if __name__ == "__main__":
+              main()
+          EOF
+
+          # Run the performance test
+          python perf_metrics_ci.py
+
+      - name: Process Test Results
+        id: test-results
+        run: |
+          if [ -f "performance_test_results.json" ]; then
+            echo "📊 Processing performance test results..."
+            
+            # Read the test results
+            RESULTS=$(cat performance_test_results.json)
+            
+            # Extract values using jq (install if needed)
+            sudo apt-get update && sudo apt-get install -y jq
+            
+            STATUS=$(echo "$RESULTS" | jq -r '.status')
+            PASSED_TESTS=$(echo "$RESULTS" | jq -r '.passed_tests')
+            FAILED_TESTS=$(echo "$RESULTS" | jq -r '.failed_tests')
+            TOTAL_TESTS=$(echo "$RESULTS" | jq -r '.total_tests')
+            FAILURE_DETAILS=$(echo "$RESULTS" | jq -r '.error // "No error details"')
+            
+            echo "status=$STATUS" >> $GITHUB_OUTPUT
+            echo "passed_tests=$PASSED_TESTS" >> $GITHUB_OUTPUT
+            echo "failed_tests=$FAILED_TESTS" >> $GITHUB_OUTPUT
+            echo "total_tests=$TOTAL_TESTS" >> $GITHUB_OUTPUT
+            echo "failure_details=$FAILURE_DETAILS" >> $GITHUB_OUTPUT
+            echo "test_output=$RESULTS" >> $GITHUB_OUTPUT
+            
+            echo "✅ Performance test results processed"
+            echo "Status: $STATUS"
+            echo "Passed: $PASSED_TESTS"
+            echo "Failed: $FAILED_TESTS"
+            echo "Total: $TOTAL_TESTS"
+          else
+            echo "❌ Performance test results file not found"
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "passed_tests=0" >> $GITHUB_OUTPUT
+            echo "failed_tests=1" >> $GITHUB_OUTPUT
+            echo "total_tests=1" >> $GITHUB_OUTPUT
+            echo "failure_details=Test results file not found" >> $GITHUB_OUTPUT
+            echo "test_output={\"error\": \"Test results file not found\"}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: performance-test-results
+          path: |
+            performance_test_results.json
+            perf_metrics_ci.py
+          retention-days: 30
+
   # Generate Comprehensive Test Report
   test-summary:
     runs-on: ubuntu-latest
-    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests]
+    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
     outputs:
       overall_status: ${{ steps.report.outputs.overall_status }}
       total_passed: ${{ steps.report.outputs.total_passed }}
@@ -985,6 +1559,11 @@ jobs:
           APPIUM_PASSED: ${{ needs.appium-lambda-tests.outputs.passed_tests }}
           APPIUM_FAILED: ${{ needs.appium-lambda-tests.outputs.failed_tests }}
           APPIUM_TOTAL: ${{ needs.appium-lambda-tests.outputs.total_tests }}
+          
+          PERFORMANCE_STATUS: ${{ needs.performance-metrics-tests.outputs.status }}
+          PERFORMANCE_PASSED: ${{ needs.performance-metrics-tests.outputs.passed_tests }}
+          PERFORMANCE_FAILED: ${{ needs.performance-metrics-tests.outputs.failed_tests }}
+          PERFORMANCE_TOTAL: ${{ needs.performance-metrics-tests.outputs.total_tests }}
         run: |
           echo "Generating comprehensive test report..."
           
@@ -994,18 +1573,20 @@ jobs:
           ACCESSIBILITY_PASSED=${ACCESSIBILITY_PASSED:-0}
           GOLDEN_PASSED=${GOLDEN_PASSED:-0}
           APPIUM_PASSED=${APPIUM_PASSED:-0}
+          PERFORMANCE_PASSED=${PERFORMANCE_PASSED:-0}
           
           UNIT_FAILED=${UNIT_FAILED:-0}
           WIDGET_FAILED=${WIDGET_FAILED:-0}
           ACCESSIBILITY_FAILED=${ACCESSIBILITY_FAILED:-0}
           GOLDEN_FAILED=${GOLDEN_FAILED:-0}
           APPIUM_FAILED=${APPIUM_FAILED:-0}
+          PERFORMANCE_FAILED=${PERFORMANCE_FAILED:-0}
           
-          TOTAL_PASSED=$((UNIT_PASSED + WIDGET_PASSED + ACCESSIBILITY_PASSED + GOLDEN_PASSED + APPIUM_PASSED))
-          TOTAL_FAILED=$((UNIT_FAILED + WIDGET_FAILED + ACCESSIBILITY_FAILED + GOLDEN_FAILED + APPIUM_FAILED))
+          TOTAL_PASSED=$((UNIT_PASSED + WIDGET_PASSED + ACCESSIBILITY_PASSED + GOLDEN_PASSED + APPIUM_PASSED + PERFORMANCE_PASSED))
+          TOTAL_FAILED=$((UNIT_FAILED + WIDGET_FAILED + ACCESSIBILITY_FAILED + GOLDEN_FAILED + APPIUM_FAILED + PERFORMANCE_FAILED))
           TOTAL_TESTS=$((TOTAL_PASSED + TOTAL_FAILED))
           
-          echo "Debug: UNIT_PASSED=$UNIT_PASSED, WIDGET_PASSED=$WIDGET_PASSED, ACCESSIBILITY_PASSED=$ACCESSIBILITY_PASSED, GOLDEN_PASSED=$GOLDEN_PASSED, APPIUM_PASSED=$APPIUM_PASSED"
+          echo "Debug: UNIT_PASSED=$UNIT_PASSED, WIDGET_PASSED=$WIDGET_PASSED, ACCESSIBILITY_PASSED=$ACCESSIBILITY_PASSED, GOLDEN_PASSED=$GOLDEN_PASSED, APPIUM_PASSED=$APPIUM_PASSED, PERFORMANCE_PASSED=$PERFORMANCE_PASSED"
           echo "Debug: TOTAL_PASSED=$TOTAL_PASSED, TOTAL_FAILED=$TOTAL_FAILED, TOTAL_TESTS=$TOTAL_TESTS"
           
           # Determine overall status
@@ -1056,6 +1637,11 @@ jobs:
           - **Tests**: $APPIUM_PASSED/$APPIUM_TOTAL passed
           - **Failed Tests**: $APPIUM_FAILED
           
+          ### ⚡ Performance Metrics Tests
+          - **Status**: $([ "$PERFORMANCE_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
+          - **Tests**: $PERFORMANCE_PASSED/$PERFORMANCE_TOTAL passed
+          - **Failed Tests**: $PERFORMANCE_FAILED
+          
           ## 🔍 Failure Analysis
           
           $([ $TOTAL_FAILED -gt 0 ] && echo "### ❌ Failed Test Suites:" || echo "### ✅ All Test Suites Passed!")
@@ -1065,6 +1651,7 @@ jobs:
           $([ "$ACCESSIBILITY_STATUS" = "failed" ] && echo "- **Accessibility Tests**: Check accessibility_test_report.md for details" || echo "")
           $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Golden Tests**: Check golden_test_report.md for details" || echo "")
           $([ "$APPIUM_STATUS" = "failed" ] && echo "- **Appium LambdaTest**: Check appium_test_report.md for details" || echo "")
+          $([ "$PERFORMANCE_STATUS" = "failed" ] && echo "- **Performance Metrics Tests**: Check performance_test_results.json for details" || echo "")
           
           ## 📁 Test Artifacts
           
@@ -1074,6 +1661,7 @@ jobs:
           - **Accessibility Test Results**: Available in the workflow artifacts
           - **Golden Test Results**: Available in the workflow artifacts (includes golden images)
           - **Appium LambdaTest Results**: Available in the workflow artifacts
+          - **Performance Metrics Test Results**: Available in the workflow artifacts (includes detailed performance data)
           
           ## 🚀 Next Steps
           
