@@ -603,6 +603,7 @@ jobs:
       total_tests: ${{ steps.test-results.outputs.total_tests }}
       failure_details: ${{ steps.test-results.outputs.failure_details }}
       test_output: ${{ steps.test-results.outputs.test_output }}
+      app_url: ${{ steps.upload-apk.outputs.app_url }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -946,7 +947,7 @@ jobs:
   # Performance Metrics Tests
   performance-metrics-tests:
     runs-on: ubuntu-latest
-    needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests]
+    needs: [appium-lambda-tests]
     outputs:
       status: ${{ steps.test-results.outputs.status }}
       passed_tests: ${{ steps.test-results.outputs.passed_tests }}
@@ -968,52 +969,18 @@ jobs:
           python -m pip install --upgrade pip
           pip install Appium-Python-Client selenium requests statistics
 
-      - name: Build Flutter APK
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: ${{ env.FLUTTER_VERSION }}
-          channel: 'stable'
-
-      - name: Get Flutter dependencies
-        run: flutter pub get
-
-      - name: Build APK for LambdaTest
+      - name: Wait for LambdaTest App Processing
         run: |
-          flutter build apk --release
-          echo "APK built successfully"
-
-      - name: Upload APK to LambdaTest
-        id: upload-apk
-        run: |
-          # Install curl if not available
-          sudo apt-get update && sudo apt-get install -y curl
-          
-          # Upload APK to LambdaTest
-          echo "Uploading APK to LambdaTest..."
-          UPLOAD_RESPONSE=$(curl -u "${{ secrets.LAMBDATEST_USERID }}:${{ secrets.LAMBDATEST_ACCESS_KEY }}" \
-            -X POST "https://manual-api.lambdatest.com/app/upload/realDevice" \
-            -F "appFile=@build/app/outputs/flutter-apk/app-release.apk" \
-            -F "type=app-automate")
-          
-          echo "Upload response: $UPLOAD_RESPONSE"
-          
-          # Extract app URL from response
-          APP_URL=$(echo "$UPLOAD_RESPONSE" | grep -o '"app_url":"[^"]*"' | cut -d'"' -f4)
-          
-          if [ -z "$APP_URL" ]; then
-            echo "❌ Failed to extract app URL from upload response"
-            exit 1
-          fi
-          
-          echo "✅ APK uploaded successfully. App URL: $APP_URL"
-          echo "app_url=$APP_URL" >> $GITHUB_OUTPUT
+          echo "⏳ Waiting for LambdaTest to process the app for profiling capabilities..."
+          echo "This ensures the app is ready for performance testing with profiling enabled."
+          sleep 60  # Wait 60 seconds for LambdaTest to process the app
 
       - name: Run Performance Metrics Test
         id: run-performance-tests
         env:
           LAMBDATEST_USERID: ${{ secrets.LAMBDATEST_USERID }}
           LAMBDATEST_ACCESS_KEY: ${{ secrets.LAMBDATEST_ACCESS_KEY }}
-          APP_URL: ${{ steps.upload-apk.outputs.app_url }}
+          APP_URL: ${{ needs.appium-lambda-tests.outputs.app_url }}
         run: |
           # Create the performance metrics test script for CI
           cat > perf_metrics_ci.py << 'EOF'
@@ -1075,6 +1042,7 @@ jobs:
                   options.set_capability("deviceOrientation", "PORTRAIT")
                   
                   # LambdaTest App Performance Analytics capabilities
+                  # Note: These capabilities require app processing time
                   options.set_capability("appProfiling", True)
                   options.set_capability("resignApp", True)
                   options.set_capability("network", True)
@@ -1083,13 +1051,28 @@ jobs:
                   options.set_capability("logcat", True)
                   options.set_capability("autoGrantPermissions", True)
                   
-                  self.driver = webdriver.Remote(
-                      command_executor=f"https://{username}:{access_key}@mobile-hub.lambdatest.com/wd/hub",
-                      options=options
-                  )
-                  
-                  self.session_id = self.driver.session_id
-                  print(f"✅ Driver initialized successfully with session ID: {self.session_id}")
+                  # Add retry logic for app processing
+                  max_retries = 3
+                  for attempt in range(max_retries):
+                      try:
+                          print(f"🔄 Attempt {attempt + 1}/{max_retries} to create driver...")
+                          self.driver = webdriver.Remote(
+                              command_executor=f"https://{username}:{access_key}@mobile-hub.lambdatest.com/wd/hub",
+                              options=options
+                          )
+                          self.session_id = self.driver.session_id
+                          print(f"✅ Driver initialized successfully with session ID: {self.session_id}")
+                          return
+                      except Exception as e:
+                          if "Invalid test parameters" in str(e) and "appProfiling" in str(e):
+                              if attempt < max_retries - 1:
+                                  print(f"⏳ App still processing, waiting 30 seconds before retry...")
+                                  time.sleep(30)
+                              else:
+                                  print(f"❌ App processing timeout after {max_retries} attempts")
+                                  raise e
+                                                        else:
+                                  raise e
 
               def perform_cold_launch(self, iteration_num):
                   """Perform a single cold launch and measure performance metrics."""
