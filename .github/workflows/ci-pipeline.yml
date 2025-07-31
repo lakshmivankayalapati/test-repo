@@ -1071,8 +1071,8 @@ jobs:
                               else:
                                   print(f"❌ App processing timeout after {max_retries} attempts")
                                   raise e
-                                                        else:
-                                  raise e
+                          else:
+                              raise e
 
               def perform_cold_launch(self, iteration_num):
                   """Perform a single cold launch and measure performance metrics."""
