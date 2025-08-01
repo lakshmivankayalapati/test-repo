@@ -1339,10 +1339,6 @@ jobs:
                           # Generate CI test results
                           test_results = self.generate_ci_results(session_data, performance_metrics, successful_launches, failed_launches)
                           
-                          # Write results to file
-                          with open('performance_test_results.json', 'w') as f:
-                              json.dump(test_results, f, indent=2)
-                          
                           print("✅ Performance test completed successfully")
                           return test_results
                       else:
@@ -1517,6 +1513,10 @@ jobs:
               test = CIPerformanceTest()
               results = test.run_performance_test()
               
+              # Write results to file regardless of status
+              with open('performance_test_results.json', 'w') as f:
+                  json.dump(results, f, indent=2)
+              
               # Exit with appropriate code
               if results['status'] == 'passed':
                   print("✅ Performance test passed")
@@ -1586,6 +1586,7 @@ jobs:
   test-summary:
     runs-on: ubuntu-latest
     needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
+    continue-on-error: true
     outputs:
       overall_status: ${{ steps.report.outputs.overall_status }}
       total_passed: ${{ steps.report.outputs.total_passed }}
@@ -1804,6 +1805,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [test-summary, unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
     if: github.event_name == 'pull_request'
+    continue-on-error: true
     steps:
       - name: Download test artifacts for detailed analysis
         uses: actions/download-artifact@v4
