@@ -1802,7 +1802,7 @@ jobs:
   # Final Status Check - Block PR if any tests fail
   final-status:
     runs-on: ubuntu-latest
-    needs: test-summary
+    needs: [test-summary, unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
     if: github.event_name == 'pull_request'
     steps:
       - name: Download test artifacts for detailed analysis
