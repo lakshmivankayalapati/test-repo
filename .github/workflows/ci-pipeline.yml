@@ -1016,7 +1016,7 @@ jobs:
           app_activity = "com.example.sliq_pay.MainActivity"
 
           # Performance test configuration
-          TARGET_COLD_LAUNCHES = 5  # Reduced for CI
+          TARGET_COLD_LAUNCHES = 10  # Increased to 10 cold launches
           FRAME_DROP_THRESHOLD = 0
           MIN_FPS_THRESHOLD = 50  # Slightly lower for CI
 
@@ -1375,18 +1375,49 @@ jobs:
                       }
 
               def generate_ci_results(self, session_data, performance_metrics, successful_launches, failed_launches):
-                  """Generate CI test results."""
+                  """Generate CI test results with detailed failure analysis."""
                   # Calculate test statistics
                   test_duration_seconds = (self.test_end_time - self.test_start_time).total_seconds()
                   avg_cold_launch_time = statistics.mean(self.cold_launch_times) if self.cold_launch_times else 0
                   min_cold_launch_time = min(self.cold_launch_times) if self.cold_launch_times else 0
                   max_cold_launch_time = max(self.cold_launch_times) if self.cold_launch_times else 0
                   
-                  # Performance assessment
+                  # Performance assessment with detailed criteria
                   performance_passed = successful_launches >= TARGET_COLD_LAUNCHES * 0.8  # 80% success rate
                   frame_drop_passed = performance_metrics['anr_count'] <= FRAME_DROP_THRESHOLD
                   fps_passed = performance_metrics['avg_frame_rate'] >= MIN_FPS_THRESHOLD
                   overall_passed = performance_passed and frame_drop_passed and fps_passed
+                  
+                  # Detailed failure analysis
+                  failure_reasons = []
+                  if not performance_passed:
+                      failure_reasons.append(f"Launch Success Rate: {successful_launches}/{TARGET_COLD_LAUNCHES} ({successful_launches/TARGET_COLD_LAUNCHES*100:.1f}%) - Required: 80%")
+                  if not frame_drop_passed:
+                      failure_reasons.append(f"ANR Events: {performance_metrics['anr_count']} - Required: {FRAME_DROP_THRESHOLD}")
+                  if not fps_passed:
+                      failure_reasons.append(f"Frame Rate: {performance_metrics['avg_frame_rate']:.1f} FPS - Required: {MIN_FPS_THRESHOLD} FPS")
+                  
+                  # Performance thresholds for detailed reporting
+                  performance_thresholds = {
+                      'launch_success_rate': 80.0,
+                      'max_anr_count': FRAME_DROP_THRESHOLD,
+                      'min_fps': MIN_FPS_THRESHOLD,
+                      'max_avg_launch_time': 5000,  # 5 seconds
+                      'max_cpu_utilization': 80.0,
+                      'max_memory_usage': 200  # MB
+                  }
+                  
+                  # Check additional performance metrics
+                  cpu_passed = performance_metrics['max_cpu_utilization'] <= performance_thresholds['max_cpu_utilization']
+                  memory_passed = performance_metrics['max_memory_usage'] <= performance_thresholds['max_memory_usage']
+                  launch_time_passed = avg_cold_launch_time <= performance_thresholds['max_avg_launch_time']
+                  
+                  if not cpu_passed:
+                      failure_reasons.append(f"CPU Utilization: {performance_metrics['max_cpu_utilization']:.1f}% - Required: ≤{performance_thresholds['max_cpu_utilization']}%")
+                  if not memory_passed:
+                      failure_reasons.append(f"Memory Usage: {performance_metrics['max_memory_usage']:.1f}MB - Required: ≤{performance_thresholds['max_memory_usage']}MB")
+                  if not launch_time_passed:
+                      failure_reasons.append(f"Average Launch Time: {avg_cold_launch_time:.1f}ms - Required: ≤{performance_thresholds['max_avg_launch_time']}ms")
                   
                   results = {
                       'status': 'passed' if overall_passed else 'failed',
@@ -1409,7 +1440,15 @@ jobs:
                           'launch_success': performance_passed,
                           'anr_events': frame_drop_passed,
                           'fps_target': fps_passed,
+                          'cpu_utilization': cpu_passed,
+                          'memory_usage': memory_passed,
+                          'launch_time': launch_time_passed,
                           'overall_result': overall_passed
+                      },
+                      'failure_analysis': {
+                          'failed_criteria': failure_reasons,
+                          'performance_thresholds': performance_thresholds,
+                          'recommendations': self.generate_recommendations(failure_reasons, performance_metrics, avg_cold_launch_time)
                       },
                       'passed_tests': 1 if overall_passed else 0,
                       'failed_tests': 0 if overall_passed else 1,
@@ -1421,11 +1460,54 @@ jobs:
                   print(f"   Launch Success: {'✅ PASSED' if performance_passed else '❌ FAILED'}")
                   print(f"   ANR Events: {'✅ PASSED' if frame_drop_passed else '❌ FAILED'}")
                   print(f"   FPS Target: {'✅ PASSED' if fps_passed else '❌ FAILED'}")
+                  print(f"   CPU Usage: {'✅ PASSED' if cpu_passed else '❌ FAILED'}")
+                  print(f"   Memory Usage: {'✅ PASSED' if memory_passed else '❌ FAILED'}")
+                  print(f"   Launch Time: {'✅ PASSED' if launch_time_passed else '❌ FAILED'}")
                   print(f"   Success Rate: {(successful_launches/TARGET_COLD_LAUNCHES)*100:.2f}%")
                   print(f"   Avg Launch Time: {avg_cold_launch_time:.2f}ms")
                   print(f"   Avg Frame Rate: {performance_metrics['avg_frame_rate']:.1f} FPS")
                   
+                  if failure_reasons:
+                      print(f"\n❌ Performance Test Failed - Reasons:")
+                      for reason in failure_reasons:
+                          print(f"   • {reason}")
+                  
                   return results
+                  
+              def generate_recommendations(self, failure_reasons, performance_metrics, avg_launch_time):
+                  """Generate specific recommendations based on failure reasons."""
+                  recommendations = []
+                  
+                  for reason in failure_reasons:
+                      if "Launch Success Rate" in reason:
+                          recommendations.append("🔧 Optimize app initialization and reduce startup time")
+                          recommendations.append("🔧 Review app dependencies and remove unnecessary ones")
+                          recommendations.append("🔧 Consider implementing lazy loading for non-critical features")
+                      elif "ANR Events" in reason:
+                          recommendations.append("🔧 Move heavy operations to background threads")
+                          recommendations.append("🔧 Optimize UI rendering and reduce main thread workload")
+                          recommendations.append("🔧 Review and optimize database operations")
+                      elif "Frame Rate" in reason:
+                          recommendations.append("🔧 Optimize UI rendering and reduce widget rebuilds")
+                          recommendations.append("🔧 Use const constructors and avoid unnecessary rebuilds")
+                          recommendations.append("🔧 Consider using RepaintBoundary for complex widgets")
+                      elif "CPU Utilization" in reason:
+                          recommendations.append("🔧 Optimize algorithms and reduce computational complexity")
+                          recommendations.append("🔧 Implement caching strategies for expensive operations")
+                          recommendations.append("🔧 Review and optimize third-party library usage")
+                      elif "Memory Usage" in reason:
+                          recommendations.append("🔧 Implement proper memory management and dispose resources")
+                          recommendations.append("🔧 Review image caching and reduce memory footprint")
+                          recommendations.append("🔧 Consider using lower resolution images where appropriate")
+                      elif "Launch Time" in reason:
+                          recommendations.append("🔧 Optimize app initialization sequence")
+                          recommendations.append("🔧 Implement splash screen with background loading")
+                          recommendations.append("🔧 Review and optimize app startup dependencies")
+                  
+                  if not recommendations:
+                      recommendations.append("🔧 Review performance metrics and optimize based on specific bottlenecks")
+                  
+                  return recommendations
 
           def main():
               print("🚀 CI PERFORMANCE METRICS TEST")
@@ -1624,6 +1706,9 @@ jobs:
           - **Status**: $([ "$PERFORMANCE_STATUS" = "passed" ] && echo "✅ PASSED" || echo "❌ FAILED")
           - **Tests**: $PERFORMANCE_PASSED/$PERFORMANCE_TOTAL passed
           - **Failed Tests**: $PERFORMANCE_FAILED
+          - **Target Cold Launches**: 10
+          - **Success Rate Threshold**: 80%
+          - **Performance Criteria**: Launch time, CPU usage, memory usage, frame rate, ANR events
           
           ## 🔍 Failure Analysis
           
@@ -1635,6 +1720,23 @@ jobs:
           $([ "$GOLDEN_STATUS" = "failed" ] && echo "- **Golden Tests**: Check golden_test_report.md for details" || echo "")
           $([ "$APPIUM_STATUS" = "failed" ] && echo "- **Appium LambdaTest**: Check appium_test_report.md for details" || echo "")
           $([ "$PERFORMANCE_STATUS" = "failed" ] && echo "- **Performance Metrics Tests**: Check performance_test_results.json for details" || echo "")
+          
+          ### 📊 Performance Test Details
+          
+          $([ "$PERFORMANCE_STATUS" = "failed" ] && echo "
+          **Performance Test Failure Analysis:**
+          
+          The performance test failed due to one or more of the following criteria:
+          
+          - **Launch Success Rate**: Must achieve 80% successful launches
+          - **ANR Events**: Must have 0 Application Not Responding events
+          - **Frame Rate**: Must maintain at least 50 FPS average
+          - **CPU Utilization**: Must stay below 80% maximum
+          - **Memory Usage**: Must stay below 200MB maximum
+          - **Launch Time**: Average cold launch must be under 5 seconds
+          
+          Check the performance_test_results.json file for detailed metrics and specific failure reasons.
+          " || echo "")
           
           ## 📁 Test Artifacts
           
@@ -1656,7 +1758,19 @@ jobs:
           2. Run the failing tests locally to reproduce the issues
           3. Fix the identified problems
           4. Re-run the CI pipeline to verify fixes
-          5. Only merge when all tests pass" || echo "")
+          5. Only merge when all tests pass
+          
+          ### 🚫 Pull Request Status:
+          **This pull request is currently BLOCKED from merging** due to failing tests.
+          The CI pipeline will prevent merging until all tests pass successfully.
+          
+          ### 📋 What Happens When Tests Fail:
+          - The pull request will be marked as failed
+          - Detailed failure reports will be posted as comments
+          - Test artifacts will be available for download
+          - Developers can review specific failure reasons
+          - The merge button will be disabled until all tests pass
+          " || echo "")
           
           ---
           *Report generated automatically by GitHub Actions CI Pipeline*
@@ -1691,14 +1805,129 @@ jobs:
     needs: test-summary
     if: github.event_name == 'pull_request'
     steps:
-      - name: Check overall test status
+      - name: Download test artifacts for detailed analysis
+        uses: actions/download-artifact@v4
+        with:
+          path: test-artifacts
+
+      - name: Check overall test status with detailed failure analysis
         run: |
+          echo "🔍 Analyzing test results..."
+          
           if [ "{{ needs.test-summary.outputs.overall_status }}" = "failure" ]; then
-            echo "❌ Some tests failed. Pull request cannot be merged."
-            echo "Total failed tests: {{ needs.test-summary.outputs.total_failed }}"
-            echo "Please review the comprehensive test report and fix all failing tests."
+            echo ""
+            echo "❌ CI PIPELINE FAILED - PULL REQUEST BLOCKED"
+            echo "=============================================="
+            echo ""
+            echo "📊 Test Summary:"
+            echo "   Total Tests: {{ needs.test-summary.outputs.total_tests }}"
+            echo "   Passed Tests: {{ needs.test-summary.outputs.total_passed }}"
+            echo "   Failed Tests: {{ needs.test-summary.outputs.total_failed }}"
+            echo ""
+            
+            # Analyze specific test failures
+            echo "🔍 Detailed Failure Analysis:"
+            echo "=============================="
+            
+            # Check each test type for failures
+            if [ "${{ needs.unit-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ UNIT TESTS FAILED"
+              echo "   - Check unit_test_report.md for specific test failures"
+              echo "   - Review test logic and fix failing assertions"
+              echo "   - Ensure all dependencies are properly mocked"
+            fi
+            
+            if [ "${{ needs.widget-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ WIDGET TESTS FAILED"
+              echo "   - Check widget_test_report.md for UI test failures"
+              echo "   - Review widget rendering and interaction logic"
+              echo "   - Ensure proper widget tree structure"
+            fi
+            
+            if [ "${{ needs.accessibility-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ ACCESSIBILITY TESTS FAILED"
+              echo "   - Check accessibility_test_report.md for a11y issues"
+              echo "   - Review semantic labels and screen reader support"
+              echo "   - Ensure proper contrast ratios and touch targets"
+            fi
+            
+            if [ "${{ needs.golden-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ GOLDEN TESTS FAILED"
+              echo "   - Check golden_test_report.md for visual regression issues"
+              echo "   - Review UI changes that may affect visual consistency"
+              echo "   - Update golden images if changes are intentional"
+            fi
+            
+            if [ "${{ needs.appium-lambda-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ APPIUM INTEGRATION TESTS FAILED"
+              echo "   - Check appium_test_report.md for integration test failures"
+              echo "   - Review app navigation and user interaction flows"
+              echo "   - Ensure app elements are properly accessible"
+            fi
+            
+            if [ "${{ needs.performance-metrics-tests.outputs.status }}" = "failed" ]; then
+              echo "❌ PERFORMANCE METRICS TESTS FAILED"
+              echo "   - Check performance_test_results.json for detailed metrics"
+              echo "   - Review performance thresholds and optimization opportunities"
+              echo "   - Analyze cold launch times, CPU usage, and memory consumption"
+              
+              # Try to extract performance failure details
+              if [ -f "test-artifacts/performance-test-results/performance_test_results.json" ]; then
+                echo ""
+                echo "📊 Performance Failure Details:"
+                echo "-------------------------------"
+                
+                # Extract failure reasons using jq
+                FAILURE_REASONS=$(cat test-artifacts/performance-test-results/performance_test_results.json | jq -r '.failure_analysis.failed_criteria[]?' 2>/dev/null || echo "Unable to extract failure reasons")
+                RECOMMENDATIONS=$(cat test-artifacts/performance-test-results/performance_test_results.json | jq -r '.failure_analysis.recommendations[]?' 2>/dev/null || echo "Unable to extract recommendations")
+                
+                if [ "$FAILURE_REASONS" != "Unable to extract failure reasons" ]; then
+                  echo "❌ Failed Criteria:"
+                  echo "$FAILURE_REASONS" | while read -r reason; do
+                    echo "   • $reason"
+                  done
+                fi
+                
+                if [ "$RECOMMENDATIONS" != "Unable to extract recommendations" ]; then
+                  echo ""
+                  echo "🔧 Recommendations:"
+                  echo "$RECOMMENDATIONS" | while read -r rec; do
+                    echo "   • $rec"
+                  done
+                fi
+              fi
+            fi
+            
+            echo ""
+            echo "🚀 NEXT STEPS:"
+            echo "==============="
+            echo "1. Review the comprehensive test report in the PR comment"
+            echo "2. Download test artifacts for detailed analysis"
+            echo "3. Run failing tests locally to reproduce issues"
+            echo "4. Fix identified problems and commit changes"
+            echo "5. Push changes to trigger a new CI run"
+            echo "6. Only merge when all tests pass"
+            echo ""
+            echo "📁 Test Artifacts Available:"
+            echo "   - Unit Test Results: Available in workflow artifacts"
+            echo "   - Widget Test Results: Available in workflow artifacts"
+            echo "   - Accessibility Test Results: Available in workflow artifacts"
+            echo "   - Golden Test Results: Available in workflow artifacts"
+            echo "   - Appium Test Results: Available in workflow artifacts"
+            echo "   - Performance Test Results: Available in workflow artifacts"
+            echo ""
+            echo "❌ Pull request cannot be merged until all tests pass."
             exit 1
           else
-            echo "✅ All tests passed! Pull request is ready for merge."
-            echo "Total passed tests: {{ needs.test-summary.outputs.total_passed }}"
+            echo ""
+            echo "✅ CI PIPELINE PASSED - PULL REQUEST READY FOR MERGE"
+            echo "====================================================="
+            echo ""
+            echo "📊 Test Summary:"
+            echo "   Total Tests: {{ needs.test-summary.outputs.total_tests }}"
+            echo "   Passed Tests: {{ needs.test-summary.outputs.total_passed }}"
+            echo "   Failed Tests: {{ needs.test-summary.outputs.total_failed }}"
+            echo ""
+            echo "🎉 All tests passed successfully!"
+            echo "The code is ready for merge."
           fi 
