@@ -1586,7 +1586,7 @@ jobs:
   test-summary:
     runs-on: ubuntu-latest
     needs: [unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
-    continue-on-error: true
+    if: always()
     outputs:
       overall_status: ${{ steps.report.outputs.overall_status }}
       total_passed: ${{ steps.report.outputs.total_passed }}
@@ -1597,6 +1597,67 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: test-reports
+
+      - name: Create default performance test results if missing
+        run: |
+          if [ ! -f "performance_test_results.json" ]; then
+            echo "Creating default performance test results file..."
+            cat > performance_test_results.json << EOF
+          {
+            "status": "failed",
+            "error": "Performance test results file not found",
+            "passed_tests": 0,
+            "failed_tests": 1,
+            "total_tests": 1,
+            "test_info": {
+              "target_launches": 10,
+              "successful_launches": 0,
+              "failed_launches": 10,
+              "success_rate": 0,
+              "test_duration_seconds": 0,
+              "session_id": "unknown"
+            },
+            "performance_data": {
+              "cold_launch_times": [],
+              "avg_cold_launch_time": 0,
+              "min_cold_launch_time": 0,
+              "max_cold_launch_time": 0
+            },
+            "lambdatest_metrics": {
+              "cold_startup_time": 0,
+              "hot_startup_time": 0,
+              "max_cpu_utilization": 0,
+              "avg_cpu": 0,
+              "max_memory_usage": 0,
+              "avg_memory_usage": 0,
+              "avg_frame_rate": 0,
+              "anr_count": 0,
+              "app_crashes": 0
+            },
+            "test_results": {
+              "launch_success": false,
+              "anr_events": true,
+              "fps_target": false,
+              "cpu_utilization": true,
+              "memory_usage": true,
+              "launch_time": true,
+              "overall_result": false
+            },
+            "failure_analysis": {
+              "failed_criteria": ["Performance test results file not found"],
+              "performance_thresholds": {
+                "launch_success_rate": 80.0,
+                "max_anr_count": 0,
+                "min_fps": 50,
+                "max_avg_launch_time": 5000,
+                "max_cpu_utilization": 80.0,
+                "max_memory_usage": 200
+              },
+              "recommendations": ["Check CI logs for performance test execution details"]
+            }
+          }
+          EOF
+          fi
 
       - name: Generate comprehensive test report
         id: report
@@ -1632,6 +1693,50 @@ jobs:
           PERFORMANCE_TOTAL: ${{ needs.performance-metrics-tests.outputs.total_tests }}
         run: |
           echo "Generating comprehensive test report..."
+          
+          # Handle cases where dependent jobs might have failed completely
+          # Set default values if outputs are not available
+          if [ -z "$UNIT_STATUS" ] || [ "$UNIT_STATUS" = "null" ]; then
+            UNIT_STATUS="failed"
+            UNIT_PASSED=0
+            UNIT_FAILED=1
+            UNIT_TOTAL=1
+          fi
+          
+          if [ -z "$WIDGET_STATUS" ] || [ "$WIDGET_STATUS" = "null" ]; then
+            WIDGET_STATUS="failed"
+            WIDGET_PASSED=0
+            WIDGET_FAILED=1
+            WIDGET_TOTAL=1
+          fi
+          
+          if [ -z "$ACCESSIBILITY_STATUS" ] || [ "$ACCESSIBILITY_STATUS" = "null" ]; then
+            ACCESSIBILITY_STATUS="failed"
+            ACCESSIBILITY_PASSED=0
+            ACCESSIBILITY_FAILED=1
+            ACCESSIBILITY_TOTAL=1
+          fi
+          
+          if [ -z "$GOLDEN_STATUS" ] || [ "$GOLDEN_STATUS" = "null" ]; then
+            GOLDEN_STATUS="failed"
+            GOLDEN_PASSED=0
+            GOLDEN_FAILED=1
+            GOLDEN_TOTAL=1
+          fi
+          
+          if [ -z "$APPIUM_STATUS" ] || [ "$APPIUM_STATUS" = "null" ]; then
+            APPIUM_STATUS="failed"
+            APPIUM_PASSED=0
+            APPIUM_FAILED=1
+            APPIUM_TOTAL=1
+          fi
+          
+          if [ -z "$PERFORMANCE_STATUS" ] || [ "$PERFORMANCE_STATUS" = "null" ]; then
+            PERFORMANCE_STATUS="failed"
+            PERFORMANCE_PASSED=0
+            PERFORMANCE_FAILED=1
+            PERFORMANCE_TOTAL=1
+          fi
           
           # Calculate totals with proper error handling
           UNIT_PASSED=${UNIT_PASSED:-0}
@@ -1804,8 +1909,7 @@ jobs:
   final-status:
     runs-on: ubuntu-latest
     needs: [test-summary, unit-tests, widget-tests, accessibility-tests, golden-tests, appium-lambda-tests, performance-metrics-tests]
-    if: github.event_name == 'pull_request'
-    continue-on-error: true
+    if: always() && github.event_name == 'pull_request'
     steps:
       - name: Download test artifacts for detailed analysis
         uses: actions/download-artifact@v4
