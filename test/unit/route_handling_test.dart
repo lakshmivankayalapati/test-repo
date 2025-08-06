@@ -88,14 +88,14 @@ class MockStorage {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('Unit Tests: ', () {
+  group('Router Logic Unit Tests', () {
     late MockStorage mockStorage;
 
     setUp(() {
       mockStorage = MockStorage();
     });
 
-    group('Router Logic Tests, () {
+    group('Router Creation Tests (from main.dart)', () {
       test('should create router successfully', () {
         final router = RouterLogic.createRouter(false);
         expect(router, isNotNull);
