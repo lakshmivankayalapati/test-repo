@@ -1018,7 +1018,7 @@ jobs:
           # Performance test configuration
           TARGET_COLD_LAUNCHES = 10  # Increased to 10 cold launches
           FRAME_DROP_THRESHOLD = 0
-          MIN_FPS_THRESHOLD = 50  # Slightly lower for CI
+          MIN_FPS_THRESHOLD = 60  # Slightly lower for CI
 
           class CIPerformanceTest:
               def __init__(self):
@@ -1648,7 +1648,7 @@ jobs:
               "performance_thresholds": {
                 "launch_success_rate": 80.0,
                 "max_anr_count": 0,
-                "min_fps": 50,
+                "min_fps": 60,
                 "max_avg_launch_time": 5000,
                 "max_cpu_utilization": 80.0,
                 "max_memory_usage": 200
@@ -1836,7 +1836,7 @@ jobs:
           
           - **Launch Success Rate**: Must achieve 80% successful launches
           - **ANR Events**: Must have 0 Application Not Responding events
-          - **Frame Rate**: Must maintain at least 50 FPS average
+          - **Frame Rate**: Must maintain at least 60 FPS average
           - **CPU Utilization**: Must stay below 80% maximum
           - **Memory Usage**: Must stay below 200MB maximum
           - **Launch Time**: Average cold launch must be under 5 seconds
