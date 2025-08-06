@@ -750,7 +750,7 @@ jobs:
           header: flutter-ci-report
           path: comprehensive_test_report.md
 
-  # Final Status Check - Block PR if any tests fail
+  # Final Status - Block PR if any tests fail
   final-status:
     runs-on: ubuntu-latest
     needs: test-summary
