@@ -2,7 +2,7 @@ name: Comprehensive CI Testing Pipeline
 
 on:
   pull_request:
-    branches: [ dev, feature ]
+    branches: [ dev ]
   push:
     branches: [ dev, feature ]
 
