@@ -169,6 +169,7 @@ Widget testAppWrapper({
 
   return ProviderScope(
     child: MaterialApp(
+      debugShowCheckedModeBanner: false, // Remove debug banner from golden images
       theme: theme ?? appTheme,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
